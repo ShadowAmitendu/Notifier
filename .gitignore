@@ -1,0 +1,21 @@
+# Build outputs
+bin/
+obj/
+
+# Package/deployment artifacts
+AppPackages/
+Installer/
+Installer.zip
+
+# IDE/user-specific files
+.vs/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Crash logs
+crash.txt
+crash_domain.txt
+crash_task.txt
