@@ -50,6 +50,7 @@ namespace Notifier
         private const int DefaultJitterSeconds = 30;
         private const bool DefaultRunAtStartup = false;
         private const bool DefaultMonitoringEnabled = true;
+        private const string DefaultAppTheme = "Default";
 
         public MainWindow()
         {
@@ -88,6 +89,7 @@ namespace Notifier
             LoadSites();
 
             var config = ConfigManager.Load();
+            ApplyTheme(config.Settings.AppTheme);
             UpdateTitlebarStatus(config.Settings.IsMonitoringEnabled);
         }
 
@@ -382,6 +384,19 @@ namespace Notifier
                 panel.Children.Add(new FontIcon { Glyph = "\uE72C", FontSize = 12 });
                 panel.Children.Add(new TextBlock { Text = "Check Now", FontSize = 12, VerticalAlignment = VerticalAlignment.Center });
                 TitleCheckNowButton.Content = panel;
+            }
+        }
+
+        private void ApplyTheme(string themeName)
+        {
+            if (this.Content is FrameworkElement rootElement)
+            {
+                rootElement.RequestedTheme = themeName switch
+                {
+                    "Light" => ElementTheme.Light,
+                    "Dark" => ElementTheme.Dark,
+                    _ => ElementTheme.Default
+                };
             }
         }
 
@@ -1003,6 +1018,28 @@ namespace Notifier
                 SettingsStartupCheck.IsChecked = StartupHelper.IsStartupEnabled();
                 _isMonitoringEnabled = config.Settings.IsMonitoringEnabled;
                 UpdateMonitoringButtonsState(config.Settings.IsMonitoringEnabled);
+
+                string theme = config.Settings.AppTheme ?? "Default";
+                int themeIdx = theme switch
+                {
+                    "Light" => 1,
+                    "Dark" => 2,
+                    _ => 0
+                };
+                if (SettingsThemeComboBox != null) SettingsThemeComboBox.SelectedIndex = themeIdx;
+
+                // Load version 1.2.0 custom sound & log management options
+                if (SettingsPlaySoundCheck != null) SettingsPlaySoundCheck.IsChecked = config.Settings.PlaySoundOnUpdate;
+                if (SettingsSoundPathTextBox != null) SettingsSoundPathTextBox.Text = config.Settings.CustomSoundPath ?? "";
+                if (SettingsAutoPruneCheck != null) SettingsAutoPruneCheck.IsChecked = config.Settings.AutoPruneLogs;
+                if (SettingsPruneDaysBox != null) SettingsPruneDaysBox.Value = config.Settings.PruneLogsDays;
+
+                // Set initial enablement states
+                if (SettingsBrowseSoundButton != null) SettingsBrowseSoundButton.IsEnabled = config.Settings.PlaySoundOnUpdate;
+                if (SettingsTestSoundButton != null) SettingsTestSoundButton.IsEnabled = config.Settings.PlaySoundOnUpdate && !string.IsNullOrEmpty(config.Settings.CustomSoundPath);
+                if (SettingsPruneDaysBox != null) SettingsPruneDaysBox.IsEnabled = config.Settings.AutoPruneLogs;
+                if (SettingsPruneNowButton != null) SettingsPruneNowButton.IsEnabled = config.Settings.AutoPruneLogs;
+
                 SettingsValidationText.Visibility = Visibility.Collapsed;
             }
             finally
@@ -1017,7 +1054,8 @@ namespace Notifier
         private bool HasSettingsChanged()
         {
             if (_isLoadingSettings) return false;
-            if (SettingsIntervalBox == null || SettingsIntervalUnit == null || SettingsJitterBox == null || SettingsStartupCheck == null) return false;
+            if (SettingsIntervalBox == null || SettingsIntervalUnit == null || SettingsJitterBox == null || SettingsStartupCheck == null || SettingsThemeComboBox == null) return false;
+            if (SettingsPlaySoundCheck == null || SettingsSoundPathTextBox == null || SettingsAutoPruneCheck == null || SettingsPruneDaysBox == null) return false;
 
             var config = ConfigManager.Load();
             var saved = config.Settings;
@@ -1035,16 +1073,37 @@ namespace Notifier
             bool currentStartup = SettingsStartupCheck.IsChecked == true;
             bool currentMonitoring = _isMonitoringEnabled;
 
+            string currentTheme = SettingsThemeComboBox.SelectedIndex switch
+            {
+                1 => "Light",
+                2 => "Dark",
+                _ => "Default"
+            };
+
+            bool currentPlaySound = SettingsPlaySoundCheck.IsChecked == true;
+            string currentSoundPath = SettingsSoundPathTextBox.Text ?? "";
+            bool currentAutoPrune = SettingsAutoPruneCheck.IsChecked == true;
+            
+            double pruneDaysVal = SettingsPruneDaysBox.Value;
+            if (double.IsNaN(pruneDaysVal)) return true;
+            int currentPruneDays = (int)pruneDaysVal;
+
             return currentIntervalMinutes != saved.CheckIntervalMinutes
                 || currentJitter != saved.MaxJitterSeconds
                 || currentStartup != StartupHelper.IsStartupEnabled()
-                || currentMonitoring != saved.IsMonitoringEnabled;
+                || currentMonitoring != saved.IsMonitoringEnabled
+                || currentTheme != (saved.AppTheme ?? "Default")
+                || currentPlaySound != saved.PlaySoundOnUpdate
+                || currentSoundPath != (saved.CustomSoundPath ?? "")
+                || currentAutoPrune != saved.AutoPruneLogs
+                || currentPruneDays != saved.PruneLogsDays;
         }
 
         private void UpdateSettingsButtonsState()
         {
             if (_isLoadingSettings) return;
-            if (SettingsIntervalBox == null || SettingsIntervalUnit == null || SettingsJitterBox == null || SettingsStartupCheck == null || SettingsSaveButton == null || SettingsDiscardButton == null || SettingsValidationText == null) return;
+            if (SettingsIntervalBox == null || SettingsIntervalUnit == null || SettingsJitterBox == null || SettingsStartupCheck == null || SettingsThemeComboBox == null || SettingsSaveButton == null || SettingsDiscardButton == null || SettingsValidationText == null) return;
+            if (SettingsPlaySoundCheck == null || SettingsSoundPathTextBox == null || SettingsBrowseSoundButton == null || SettingsTestSoundButton == null || SettingsAutoPruneCheck == null || SettingsPruneDaysBox == null || SettingsPruneNowButton == null) return;
 
             bool changed = HasSettingsChanged();
             if (changed)
@@ -1077,6 +1136,7 @@ namespace Notifier
         {
             double intervalVal = SettingsIntervalBox.Value;
             double jitterVal   = SettingsJitterBox.Value;
+            double pruneDaysVal = SettingsPruneDaysBox.Value;
 
             if (double.IsNaN(intervalVal) || intervalVal < 1)
             {
@@ -1088,6 +1148,11 @@ namespace Notifier
                 ShowSettingsValidation("Jitter delay cannot be negative.");
                 return;
             }
+            if (SettingsAutoPruneCheck.IsChecked == true && (double.IsNaN(pruneDaysVal) || pruneDaysVal < 1))
+            {
+                ShowSettingsValidation("Prune logs days must be at least 1.");
+                return;
+            }
 
             int value        = (int)intervalVal;
             int totalMinutes = SettingsIntervalUnit.SelectedIndex == 1 ? value * 60 : value;
@@ -1095,12 +1160,29 @@ namespace Notifier
             bool runAtStart  = SettingsStartupCheck.IsChecked == true;
             bool enableCheck = _isMonitoringEnabled;
 
+            string selectedTheme = SettingsThemeComboBox.SelectedIndex switch
+            {
+                1 => "Light",
+                2 => "Dark",
+                _ => "Default"
+            };
+
             var config = ConfigManager.Load();
             config.Settings.CheckIntervalMinutes = totalMinutes;
             config.Settings.MaxJitterSeconds     = jitter;
             config.Settings.RunAtStartup         = runAtStart;
             config.Settings.IsMonitoringEnabled  = enableCheck;
+            config.Settings.AppTheme             = selectedTheme;
+
+            // Save new fields
+            config.Settings.PlaySoundOnUpdate = SettingsPlaySoundCheck.IsChecked == true;
+            config.Settings.CustomSoundPath = SettingsSoundPathTextBox.Text ?? "";
+            config.Settings.AutoPruneLogs = SettingsAutoPruneCheck.IsChecked == true;
+            config.Settings.PruneLogsDays = (int)pruneDaysVal;
+
             ConfigManager.Save(config);
+
+            ApplyTheme(selectedTheme);
 
             StartupHelper.SetStartup(runAtStart);
 
@@ -1259,6 +1341,14 @@ namespace Notifier
                 SettingsJitterBox.Value = DefaultJitterSeconds;
                 SettingsStartupCheck.IsChecked = DefaultRunAtStartup;
                 UpdateMonitoringButtonsState(DefaultMonitoringEnabled);
+                if (SettingsThemeComboBox != null) SettingsThemeComboBox.SelectedIndex = 0; // Default
+
+                // Restore new settings defaults
+                if (SettingsPlaySoundCheck != null) SettingsPlaySoundCheck.IsChecked = false;
+                if (SettingsSoundPathTextBox != null) SettingsSoundPathTextBox.Text = "";
+                if (SettingsAutoPruneCheck != null) SettingsAutoPruneCheck.IsChecked = false;
+                if (SettingsPruneDaysBox != null) SettingsPruneDaysBox.Value = 30;
+
                 SettingsValidationText.Visibility = Visibility.Collapsed;
             }
             finally
@@ -1300,6 +1390,11 @@ namespace Notifier
         }
 
         private void OnSettingsStartupCheckChanged(object sender, RoutedEventArgs e)
+        {
+            UpdateSettingsButtonsState();
+        }
+
+        private void OnSettingsThemeChanged(object sender, SelectionChangedEventArgs e)
         {
             UpdateSettingsButtonsState();
         }
@@ -1413,10 +1508,144 @@ namespace Notifier
                 : Visibility.Collapsed;
         }
 
-        private void OnClearLogsClick(object sender, RoutedEventArgs e)
+        private async void OnClearLogsClick(object sender, RoutedEventArgs e)
         {
-            LogManager.ClearLogs();
+            if (this.Content == null || this.Content.XamlRoot == null)
+            {
+                LogManager.ClearLogs();
+                LoadLogs();
+                return;
+            }
+
+            var confirmDialog = new ContentDialog
+            {
+                Title = "Clear History Logs",
+                Content = "Are you sure you want to permanently delete all history logs? This action cannot be undone.",
+                PrimaryButtonText = "Clear All",
+                CloseButtonText = "Cancel",
+                DefaultButton = ContentDialogButton.Close,
+                XamlRoot = this.Content.XamlRoot
+            };
+
+            var dialogResult = await confirmDialog.ShowAsync();
+            if (dialogResult == ContentDialogResult.Primary)
+            {
+                LogManager.ClearLogs();
+                LoadLogs();
+
+                // Show success status message
+                SettingsValidationText.Text = "All history logs have been cleared.";
+                SettingsValidationText.Foreground = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 16, 185, 129)); // Green-500
+                SettingsValidationText.Visibility = Visibility.Visible;
+
+                _ = Task.Run(async () =>
+                {
+                    await Task.Delay(4000);
+                    DispatcherQueue.TryEnqueue(() =>
+                    {
+                        SettingsValidationText.Visibility = Visibility.Collapsed;
+                    });
+                });
+            }
+        }
+
+        // ─── Custom Sound & Log Pruning Event Handlers ───────────────────────────
+
+        private void OnSettingsPlaySoundCheckChanged(object sender, RoutedEventArgs e)
+        {
+            if (SettingsPlaySoundCheck == null || SettingsBrowseSoundButton == null || SettingsTestSoundButton == null || SettingsSoundPathTextBox == null) return;
+            
+            bool isChecked = SettingsPlaySoundCheck.IsChecked == true;
+            SettingsBrowseSoundButton.IsEnabled = isChecked;
+            SettingsTestSoundButton.IsEnabled = isChecked && !string.IsNullOrEmpty(SettingsSoundPathTextBox.Text);
+            
+            UpdateSettingsButtonsState();
+        }
+
+        private void OnSettingsAutoPruneCheckChanged(object sender, RoutedEventArgs e)
+        {
+            if (SettingsAutoPruneCheck == null || SettingsPruneDaysBox == null || SettingsPruneNowButton == null) return;
+            
+            bool isChecked = SettingsAutoPruneCheck.IsChecked == true;
+            SettingsPruneDaysBox.IsEnabled = isChecked;
+            SettingsPruneNowButton.IsEnabled = isChecked;
+            
+            UpdateSettingsButtonsState();
+        }
+
+        private void OnSettingsPruneDaysBoxChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
+        {
+            UpdateSettingsButtonsState();
+        }
+
+        private async void OnBrowseSoundClick(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var openPicker = new Windows.Storage.Pickers.FileOpenPicker();
+                
+                // WinUI 3 HWND association
+                var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+                WinRT.Interop.InitializeWithWindow.Initialize(openPicker, hwnd);
+
+                openPicker.ViewMode = Windows.Storage.Pickers.PickerViewMode.List;
+                openPicker.SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.MusicLibrary;
+                openPicker.FileTypeFilter.Add(".mp3");
+                openPicker.FileTypeFilter.Add(".wav");
+
+                var file = await openPicker.PickSingleFileAsync();
+                if (file != null)
+                {
+                    SettingsSoundPathTextBox.Text = file.Path;
+                    if (SettingsTestSoundButton != null)
+                    {
+                        SettingsTestSoundButton.IsEnabled = true;
+                    }
+                    UpdateSettingsButtonsState();
+                }
+            }
+            catch (Exception ex)
+            {
+                ShowSettingsValidation($"Failed to select sound file: {ex.Message}");
+            }
+        }
+
+        private void OnTestSoundClick(object sender, RoutedEventArgs e)
+        {
+            if (SettingsSoundPathTextBox == null || string.IsNullOrEmpty(SettingsSoundPathTextBox.Text)) return;
+            NotificationService.PlaySound(SettingsSoundPathTextBox.Text);
+        }
+
+        private void OnPruneLogsNowClick(object sender, RoutedEventArgs e)
+        {
+            if (SettingsPruneDaysBox == null) return;
+            
+            double pruneDaysVal = SettingsPruneDaysBox.Value;
+            if (double.IsNaN(pruneDaysVal) || pruneDaysVal < 1)
+            {
+                ShowSettingsValidation("Prune logs days must be at least 1.");
+                return;
+            }
+
+            int days = (int)pruneDaysVal;
+            int removedCount = LogManager.PruneLogs(days);
+            
+            // Reload logs list in UI
             LoadLogs();
+
+            // Display success message
+            SettingsValidationText.Text = $"Pruned {removedCount} history log record(s) older than {days} day(s).";
+            SettingsValidationText.Foreground = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 16, 185, 129)); // Green-500
+            SettingsValidationText.Visibility = Visibility.Visible;
+
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(4000);
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    SettingsValidationText.Visibility = Visibility.Collapsed;
+                });
+            });
         }
     }
 }

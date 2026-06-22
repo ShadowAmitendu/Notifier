@@ -104,5 +104,34 @@ namespace Notifier.Services
                 }
             }
         }
+
+        public static int PruneLogs(int olderThanDays)
+        {
+            lock (_lock)
+            {
+                try
+                {
+                    var logs = LoadLogs();
+                    int initialCount = logs.Count;
+                    var cutoff = DateTime.Now.AddDays(-olderThanDays);
+                    
+                    logs.RemoveAll(log => log.Timestamp < cutoff);
+                    int removedCount = initialCount - logs.Count;
+
+                    if (removedCount > 0)
+                    {
+                        var options = new JsonSerializerOptions { WriteIndented = true };
+                        string json = JsonSerializer.Serialize(logs, options);
+                        File.WriteAllText(LogPath, json);
+                    }
+
+                    return removedCount;
+                }
+                catch
+                {
+                    return 0;
+                }
+            }
+        }
     }
 }

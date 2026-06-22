@@ -637,6 +637,25 @@
                                     </Grid>
                                 </StackPanel>
 
+                                <!-- Startup -->
+                                <CheckBox x:Name="SettingsStartupCheck"
+                                          Content="Run at Windows startup"
+                                          Margin="0,6,0,0"
+                                          Checked="OnSettingsStartupCheckChanged"
+                                          Unchecked="OnSettingsStartupCheckChanged"/>
+
+                                <!-- Theme Toggle -->
+                                <ComboBox x:Name="SettingsThemeComboBox"
+                                          Header="App Color Theme"
+                                          SelectedIndex="0"
+                                          Width="560" HorizontalAlignment="Left"
+                                          Margin="0,6,0,0"
+                                          SelectionChanged="OnSettingsThemeChanged">
+                                    <ComboBoxItem Content="Use System Setting"/>
+                                    <ComboBoxItem Content="Light Theme"/>
+                                    <ComboBoxItem Content="Dark Theme"/>
+                                </ComboBox>
+
                                 <!-- Jitter -->
                                 <NumberBox x:Name="SettingsJitterBox"
                                            Header="Max Random Delay Jitter (seconds)"
@@ -645,12 +664,76 @@
                                            Width="560" HorizontalAlignment="Left"
                                            ValueChanged="OnSettingsJitterBoxChanged"/>
 
-                                <!-- Startup -->
-                                <CheckBox x:Name="SettingsStartupCheck"
-                                          Content="Run at Windows startup"
-                                          Margin="0,6,0,0"
-                                          Checked="OnSettingsStartupCheckChanged"
-                                          Unchecked="OnSettingsStartupCheckChanged"/>
+                                 <!-- Sound Alerts -->
+                                 <StackPanel Spacing="6" Width="560" HorizontalAlignment="Left" Margin="0,6,0,0">
+                                     <TextBlock Text="Sound Notifications"
+                                                Style="{ThemeResource BodyTextBlockStyle}"
+                                                FontWeight="SemiBold"/>
+                                     <CheckBox x:Name="SettingsPlaySoundCheck"
+                                               Content="Play sound on update detection"
+                                               Checked="OnSettingsPlaySoundCheckChanged"
+                                               Unchecked="OnSettingsPlaySoundCheckChanged"/>
+                                     <Grid ColumnSpacing="10" Margin="0,4,0,0">
+                                         <Grid.ColumnDefinitions>
+                                             <ColumnDefinition Width="*"/>
+                                             <ColumnDefinition Width="Auto"/>
+                                             <ColumnDefinition Width="Auto"/>
+                                         </Grid.ColumnDefinitions>
+                                         <TextBox x:Name="SettingsSoundPathTextBox"
+                                                  Grid.Column="0"
+                                                  PlaceholderText="Path to .mp3 or .wav file..."
+                                                  IsReadOnly="True"
+                                                  Height="36" CornerRadius="4"/>
+                                         <Button x:Name="SettingsBrowseSoundButton"
+                                                 Grid.Column="1"
+                                                 Click="OnBrowseSoundClick"
+                                                 Height="36" Width="90" CornerRadius="4"
+                                                 Content="Browse..."/>
+                                         <Button x:Name="SettingsTestSoundButton"
+                                                 Grid.Column="2"
+                                                 Click="OnTestSoundClick"
+                                                 Height="36" Width="70" CornerRadius="4"
+                                                 Content="Test"/>
+                                     </Grid>
+                                 </StackPanel>
+
+                                 <!-- Log Management -->
+                                 <StackPanel Spacing="6" Width="560" HorizontalAlignment="Left" Margin="0,12,0,0">
+                                     <TextBlock Text="History Log Management"
+                                                Style="{ThemeResource BodyTextBlockStyle}"
+                                                FontWeight="SemiBold"/>
+                                     <CheckBox x:Name="SettingsAutoPruneCheck"
+                                               Content="Automatically prune history logs"
+                                               Checked="OnSettingsAutoPruneCheckChanged"
+                                               Unchecked="OnSettingsAutoPruneCheckChanged"/>
+                                     <Grid ColumnSpacing="10" Margin="0,4,0,0">
+                                         <Grid.ColumnDefinitions>
+                                             <ColumnDefinition Width="*"/>
+                                             <ColumnDefinition Width="Auto"/>
+                                             <ColumnDefinition Width="Auto"/>
+                                         </Grid.ColumnDefinitions>
+                                         <NumberBox x:Name="SettingsPruneDaysBox"
+                                                    Grid.Column="0"
+                                                    Header="Prune logs older than (days)"
+                                                    Value="30" Minimum="1" Maximum="365"
+                                                    SpinButtonPlacementMode="Compact"
+                                                    CornerRadius="4"
+                                                    ValueChanged="OnSettingsPruneDaysBoxChanged"/>
+                                         <Button x:Name="SettingsPruneNowButton"
+                                                 Grid.Column="1"
+                                                 Click="OnPruneLogsNowClick"
+                                                 Height="36" Width="100" CornerRadius="4"
+                                                 Content="Prune Now"
+                                                 VerticalAlignment="Bottom"/>
+                                         <Button x:Name="SettingsClearLogsButton"
+                                                 Grid.Column="2"
+                                                 Click="OnClearLogsClick"
+                                                 Height="36" Width="100" CornerRadius="4"
+                                                 Content="Clear All"
+                                                 VerticalAlignment="Bottom"
+                                                 Style="{ThemeResource DefaultButtonStyle}"/>
+                                     </Grid>
+                                 </StackPanel>
 
                                  <!-- Backup & Restore -->
                                  <StackPanel Spacing="8" Width="560" HorizontalAlignment="Left">
@@ -724,84 +807,128 @@
                                    Margin="0,0,0,16"/>
                         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
                             <StackPanel Spacing="16" MaxWidth="600" HorizontalAlignment="Left">
-                                <TextBlock Text="Quick Start Guide" Style="{ThemeResource SubtitleTextBlockStyle}" FontWeight="SemiBold"/>
-                                <StackPanel Spacing="6" Margin="12,0,0,0">
-                                    <StackPanel Orientation="Horizontal" Spacing="8">
-                                        <TextBlock Text="1." Style="{ThemeResource BodyTextBlockStyle}" FontWeight="SemiBold"/>
-                                        <TextBlock Text="Click 'Add Site' in the dashboard or sidebar navigation." TextWrapping="Wrap" Style="{ThemeResource BodyTextBlockStyle}"/>
-                                    </StackPanel>
-                                    <StackPanel Orientation="Horizontal" Spacing="8">
-                                        <TextBlock Text="2." Style="{ThemeResource BodyTextBlockStyle}" FontWeight="SemiBold"/>
-                                        <TextBlock Text="Enter a friendly name and the HTTP/HTTPS URL you wish to monitor." TextWrapping="Wrap" Style="{ThemeResource BodyTextBlockStyle}"/>
-                                    </StackPanel>
-                                    <StackPanel Orientation="Horizontal" Spacing="8">
-                                        <TextBlock Text="3." Style="{ThemeResource BodyTextBlockStyle}" FontWeight="SemiBold"/>
-                                        <TextBlock Text="Click 'Add Site' to save. The application will start monitoring it immediately." TextWrapping="Wrap" Style="{ThemeResource BodyTextBlockStyle}"/>
-                                    </StackPanel>
-                                </StackPanel>
-                                
-                                <TextBlock Text="How Monitoring Works" Style="{ThemeResource SubtitleTextBlockStyle}" FontWeight="SemiBold" Margin="0,8,0,0"/>
-                                <TextBlock Text="The application performs web requests in the background at your configured check interval. It strips away webpage code (like scripts and styling) and normalizes the text content. It then computes a secure hash (SHA-256) of the text and compares it to the previous run. If the hashes don't match, you'll receive a Windows notification tip."
-                                           TextWrapping="Wrap" Style="{ThemeResource BodyTextBlockStyle}"/>
 
-                                <TextBlock Text="Sharing the Installer" Style="{ThemeResource SubtitleTextBlockStyle}" FontWeight="SemiBold" Margin="0,8,0,0"/>
-                                <TextBlock Text="To share this application with others:" Style="{ThemeResource BodyTextBlockStyle}"/>
-                                
-                                <StackPanel Spacing="6" Margin="12,0,0,0">
-                                    <StackPanel Orientation="Horizontal" Spacing="8">
-                                        <TextBlock Text="1." Style="{ThemeResource BodyTextBlockStyle}" FontWeight="SemiBold"/>
-                                        <TextBlock Text="Provide them both the Installer (SiteUpdateNotifier.msix) and the Certificate (NotifierPublisher.cer) from the Installer folder." TextWrapping="Wrap" Style="{ThemeResource BodyTextBlockStyle}"/>
-                                    </StackPanel>
-                                    <StackPanel Orientation="Horizontal" Spacing="8">
-                                        <TextBlock Text="2." Style="{ThemeResource BodyTextBlockStyle}" FontWeight="SemiBold"/>
-                                        <TextBlock Text="Double-click the .cer file first, select 'Local Machine', and place it in the 'Trusted Root Certification Authorities' store." TextWrapping="Wrap" Style="{ThemeResource BodyTextBlockStyle}"/>
-                                    </StackPanel>
-                                    <StackPanel Orientation="Horizontal" Spacing="8">
-                                        <TextBlock Text="3." Style="{ThemeResource BodyTextBlockStyle}" FontWeight="SemiBold"/>
-                                        <TextBlock Text="Alternatively, run these commands in an Administrator PowerShell session:" TextWrapping="Wrap" Style="{ThemeResource BodyTextBlockStyle}"/>
-                                    </StackPanel>
-                                </StackPanel>
+                                <TextBlock Text="Frequently Asked Questions (FAQ)" Style="{ThemeResource SubtitleTextBlockStyle}" FontWeight="SemiBold"/>
 
-                                <!-- Code Block 1 -->
-                                <Border BorderBrush="{ThemeResource SystemControlBackgroundBaseLowBrush}" BorderThickness="1" CornerRadius="4" Padding="10,6" Background="{ThemeResource SystemControlBackgroundChromeMediumLowBrush}" Width="560" HorizontalAlignment="Left">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Text="Import-Certificate -FilePath .\NotifierPublisher.cer -CertStoreLocation Cert:\LocalMachine\Root" FontFamily="Consolas" FontSize="11" VerticalAlignment="Center" TextWrapping="Wrap" Grid.Column="0"/>
-                                        <Button Grid.Column="1" Click="OnCopyCommandClick" Tag="Import-Certificate -FilePath .\NotifierPublisher.cer -CertStoreLocation Cert:\LocalMachine\Root" Style="{ThemeResource DefaultButtonStyle}" Padding="8,4" Margin="10,0,0,0">
-                                            <StackPanel Orientation="Horizontal" Spacing="4">
-                                                <FontIcon Glyph="&#xE8C8;" FontSize="12"/>
-                                                <TextBlock Text="Copy" FontSize="12"/>
+                                <Expander Header="How do I start monitoring a website?"
+                                          HorizontalAlignment="Left"
+                                          Width="560"
+                                          IsExpanded="True"
+                                          Margin="0,4,0,4">
+                                    <StackPanel Spacing="10" Padding="16">
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <TextBlock Text="1." Style="{ThemeResource BodyTextBlockStyle}" FontWeight="SemiBold"/>
+                                            <TextBlock Text="Click 'Add Site' in the dashboard or sidebar navigation." TextWrapping="Wrap" Style="{ThemeResource BodyTextBlockStyle}"/>
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <TextBlock Text="2." Style="{ThemeResource BodyTextBlockStyle}" FontWeight="SemiBold"/>
+                                            <TextBlock Text="Enter a friendly name and the HTTP/HTTPS URL you wish to monitor." TextWrapping="Wrap" Style="{ThemeResource BodyTextBlockStyle}"/>
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <TextBlock Text="3." Style="{ThemeResource BodyTextBlockStyle}" FontWeight="SemiBold"/>
+                                            <TextBlock Text="Click 'Add Site' to save. The application will start monitoring it immediately." TextWrapping="Wrap" Style="{ThemeResource BodyTextBlockStyle}"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Expander>
+
+                                <Expander Header="How does the website monitoring work?"
+                                          HorizontalAlignment="Left"
+                                          Width="560"
+                                          IsExpanded="False"
+                                          Margin="0,4,0,4">
+                                    <StackPanel Spacing="10" Padding="16">
+                                        <TextBlock Text="The application performs web requests in the background at your configured check interval. It strips away webpage code (like scripts and styling) and normalizes the text content. It then computes a secure hash (SHA-256) of the text and compares it to the previous run. If the hashes don't match, you'll receive a Windows notification and the Dashboard will show a 'Changed' status badge."
+                                                   TextWrapping="Wrap" Style="{ThemeResource BodyTextBlockStyle}"/>
+                                    </StackPanel>
+                                </Expander>
+
+                                <Expander Header="How do I install the signed package on another PC?"
+                                          HorizontalAlignment="Left"
+                                          Width="560"
+                                          IsExpanded="False"
+                                          Margin="0,4,0,4">
+                                    <StackPanel Spacing="12" Padding="16">
+                                        <TextBlock Text="To share and install this application on other machines:" Style="{ThemeResource BodyTextBlockStyle}"/>
+                                        <StackPanel Spacing="6" Margin="12,0,0,0">
+                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                <TextBlock Text="1." Style="{ThemeResource BodyTextBlockStyle}" FontWeight="SemiBold"/>
+                                                <TextBlock Text="Provide them both the Installer (SiteUpdateNotifier.msix) and the Certificate (NotifierPublisher.cer) from the Installer folder." TextWrapping="Wrap" Style="{ThemeResource BodyTextBlockStyle}"/>
                                             </StackPanel>
-                                        </Button>
-                                    </Grid>
-                                </Border>
-
-                                <!-- Code Block 2 -->
-                                <Border BorderBrush="{ThemeResource SystemControlBackgroundBaseLowBrush}" BorderThickness="1" CornerRadius="4" Padding="10,6" Background="{ThemeResource SystemControlBackgroundChromeMediumLowBrush}" Width="560" HorizontalAlignment="Left">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Text="Import-Certificate -FilePath .\NotifierPublisher.cer -CertStoreLocation Cert:\LocalMachine\TrustedPeople" FontFamily="Consolas" FontSize="11" VerticalAlignment="Center" TextWrapping="Wrap" Grid.Column="0"/>
-                                        <Button Grid.Column="1" Click="OnCopyCommandClick" Tag="Import-Certificate -FilePath .\NotifierPublisher.cer -CertStoreLocation Cert:\LocalMachine\TrustedPeople" Style="{ThemeResource DefaultButtonStyle}" Padding="8,4" Margin="10,0,0,0">
-                                            <StackPanel Orientation="Horizontal" Spacing="4">
-                                                <FontIcon Glyph="&#xE8C8;" FontSize="12"/>
-                                                <TextBlock Text="Copy" FontSize="12"/>
+                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                <TextBlock Text="2." Style="{ThemeResource BodyTextBlockStyle}" FontWeight="SemiBold"/>
+                                                <TextBlock Text="Double-click the .cer file first, select 'Local Machine', and place it in the 'Trusted Root Certification Authorities' store." TextWrapping="Wrap" Style="{ThemeResource BodyTextBlockStyle}"/>
                                             </StackPanel>
-                                        </Button>
-                                    </Grid>
-                                </Border>
+                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                <TextBlock Text="3." Style="{ThemeResource BodyTextBlockStyle}" FontWeight="SemiBold"/>
+                                                <TextBlock Text="Alternatively, run these commands in an Administrator PowerShell session:" TextWrapping="Wrap" Style="{ThemeResource BodyTextBlockStyle}"/>
+                                            </StackPanel>
+                                        </StackPanel>
 
-                                <StackPanel Spacing="6" Margin="12,0,0,0">
-                                    <StackPanel Orientation="Horizontal" Spacing="8">
-                                        <TextBlock Text="4." Style="{ThemeResource BodyTextBlockStyle}" FontWeight="SemiBold"/>
-                                        <TextBlock Text="Double-click the .msix file to install the application instantly!" TextWrapping="Wrap" Style="{ThemeResource BodyTextBlockStyle}"/>
+                                        <!-- Code Block 1 -->
+                                        <Border BorderBrush="{ThemeResource SystemControlBackgroundBaseLowBrush}" BorderThickness="1" CornerRadius="4" Padding="10,6" Background="{ThemeResource SystemControlBackgroundChromeMediumLowBrush}" HorizontalAlignment="Stretch">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="Import-Certificate -FilePath .\NotifierPublisher.cer -CertStoreLocation Cert:\LocalMachine\Root" FontFamily="Consolas" FontSize="11" VerticalAlignment="Center" TextWrapping="Wrap" Grid.Column="0"/>
+                                                <Button Grid.Column="1" Click="OnCopyCommandClick" Tag="Import-Certificate -FilePath .\NotifierPublisher.cer -CertStoreLocation Cert:\LocalMachine\Root" Style="{ThemeResource DefaultButtonStyle}" Padding="8,4" Margin="10,0,0,0">
+                                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                                        <FontIcon Glyph="&#xE8C8;" FontSize="12"/>
+                                                        <TextBlock Text="Copy" FontSize="12"/>
+                                                    </StackPanel>
+                                                </Button>
+                                            </Grid>
+                                        </Border>
+
+                                        <!-- Code Block 2 -->
+                                        <Border BorderBrush="{ThemeResource SystemControlBackgroundBaseLowBrush}" BorderThickness="1" CornerRadius="4" Padding="10,6" Background="{ThemeResource SystemControlBackgroundChromeMediumLowBrush}" HorizontalAlignment="Stretch">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="Import-Certificate -FilePath .\NotifierPublisher.cer -CertStoreLocation Cert:\LocalMachine\TrustedPeople" FontFamily="Consolas" FontSize="11" VerticalAlignment="Center" TextWrapping="Wrap" Grid.Column="0"/>
+                                                <Button Grid.Column="1" Click="OnCopyCommandClick" Tag="Import-Certificate -FilePath .\NotifierPublisher.cer -CertStoreLocation Cert:\LocalMachine\TrustedPeople" Style="{ThemeResource DefaultButtonStyle}" Padding="8,4" Margin="10,0,0,0">
+                                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                                        <FontIcon Glyph="&#xE8C8;" FontSize="12"/>
+                                                        <TextBlock Text="Copy" FontSize="12"/>
+                                                    </StackPanel>
+                                                </Button>
+                                            </Grid>
+                                        </Border>
+
+                                        <StackPanel Orientation="Horizontal" Spacing="8" Margin="12,0,0,0">
+                                            <TextBlock Text="4." Style="{ThemeResource BodyTextBlockStyle}" FontWeight="SemiBold"/>
+                                            <TextBlock Text="Double-click the .msix file to install the application instantly!" TextWrapping="Wrap" Style="{ThemeResource BodyTextBlockStyle}"/>
+                                        </StackPanel>
                                     </StackPanel>
-                                </StackPanel>
+                                </Expander>
+
+                                <Expander Header="What do the different status indicators mean?"
+                                          HorizontalAlignment="Left"
+                                          Width="560"
+                                          IsExpanded="False"
+                                          Margin="0,4,0,4">
+                                    <StackPanel Spacing="10" Padding="16">
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <FontIcon Glyph="&#xE73E;" Foreground="#22C55E" FontSize="14" VerticalAlignment="Center"/>
+                                            <TextBlock Text="Success (Green): The site was checked successfully and no changes were found." TextWrapping="Wrap" Style="{ThemeResource BodyTextBlockStyle}"/>
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <FontIcon Glyph="&#xE7C8;" Foreground="#EF4444" FontSize="14" VerticalAlignment="Center"/>
+                                            <TextBlock Text="Changed (Red): Webpage content changes were detected. A 'View Diff' button appears to inspect edits line-by-line." TextWrapping="Wrap" Style="{ThemeResource BodyTextBlockStyle}"/>
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <FontIcon Glyph="&#xE7BA;" Foreground="#F59E0B" FontSize="14" VerticalAlignment="Center"/>
+                                            <TextBlock Text="Error (Amber): The request failed (e.g. timeout, DNS resolution error, or offline)." TextWrapping="Wrap" Style="{ThemeResource BodyTextBlockStyle}"/>
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <FontIcon Glyph="&#xE71B;" Foreground="#94A6B8" FontSize="14" VerticalAlignment="Center"/>
+                                            <TextBlock Text="Pending (Gray): The site is scheduled and waiting for its initial or next automatic check run." TextWrapping="Wrap" Style="{ThemeResource BodyTextBlockStyle}"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Expander>
                             </StackPanel>
                         </ScrollViewer>
                     </Grid>
@@ -830,7 +957,26 @@
                                 <TextBlock Text="A modern Windows App SDK (WinUI 3) utility designed to monitor web content changes and alert you instantly in the system tray. Built with high-performance C# and native Fluent Design system."
                                            TextWrapping="Wrap" Style="{ThemeResource BodyTextBlockStyle}"/>
 
-                                <TextBlock Text="Developer &amp; Publisher: Amitendu" Style="{ThemeResource BodyTextBlockStyle}" FontWeight="SemiBold"/>
+                                <StackPanel Spacing="4">
+                                    <TextBlock Text="Developer &amp; Publisher" Style="{ThemeResource CaptionTextBlockStyle}" Foreground="{ThemeResource SystemControlPageTextBaseMediumBrush}"/>
+                                    <TextBlock Text="Amitendu Bikash Dhusiya (Shadow Amitendu)" Style="{ThemeResource BodyTextBlockStyle}" FontWeight="SemiBold"/>
+                                </StackPanel>
+
+                                <StackPanel Orientation="Horizontal" Spacing="24">
+                                    <HyperlinkButton NavigateUri="https://github.com/ShadowAmitendu" Padding="0">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <FontIcon Glyph="&#xE71B;" FontSize="14"/>
+                                            <TextBlock Text="GitHub Profile" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </HyperlinkButton>
+
+                                    <HyperlinkButton NavigateUri="https://www.linkedin.com/in/amitendu/" Padding="0">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <FontIcon Glyph="&#xE71B;" FontSize="14"/>
+                                            <TextBlock Text="LinkedIn Profile" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </HyperlinkButton>
+                                </StackPanel>
                                 
                                 <TextBlock Text="Licensed under the MIT License. All rights reserved." Style="{ThemeResource CaptionTextBlockStyle}" Foreground="{ThemeResource SystemControlPageTextBaseMediumBrush}"/>
                             </StackPanel>

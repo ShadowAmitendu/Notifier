@@ -333,6 +333,18 @@ namespace Notifier
                 // Save changes
                 ConfigManager.Save(config);
 
+                // Auto prune logs if enabled
+                if (config.Settings.AutoPruneLogs)
+                {
+                    LogManager.PruneLogs(config.Settings.PruneLogsDays);
+                }
+
+                // Play custom sound if updates detected
+                if (updatedCount > 0 && config.Settings.PlaySoundOnUpdate && !string.IsNullOrEmpty(config.Settings.CustomSoundPath))
+                {
+                    NotificationService.PlaySound(config.Settings.CustomSoundPath);
+                }
+
                 // Refresh MainWindow if it's currently open
                 m_mainWindow?.LoadSites();
                 m_mainWindow?.LoadLogs(); // Refresh logs if open

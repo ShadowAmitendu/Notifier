@@ -74,5 +74,26 @@ namespace Notifier.Services
                 ToolTipIcon.Warning
             );
         }
+
+        private static Windows.Media.Playback.MediaPlayer? _mediaPlayer;
+
+        public static void PlaySound(string filePath)
+        {
+            if (string.IsNullOrEmpty(filePath) || !System.IO.File.Exists(filePath)) return;
+
+            try
+            {
+                if (_mediaPlayer == null)
+                {
+                    _mediaPlayer = new Windows.Media.Playback.MediaPlayer();
+                }
+                _mediaPlayer.Source = Windows.Media.Core.MediaSource.CreateFromUri(new System.Uri(filePath));
+                _mediaPlayer.Play();
+            }
+            catch (System.Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to play sound: {ex.Message}");
+            }
+        }
     }
 }
