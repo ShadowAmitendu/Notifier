@@ -8,7 +8,7 @@ if (!(Test-Path $assetsDir)) {
     New-Item -ItemType Directory -Path $assetsDir | Out-Null
 }
 
-function Create-Logo($path, $width, $height) {
+function New-Logo($path, $width, $height) {
     $bmp = New-Object System.Drawing.Bitmap $width, $height
     $g = [System.Drawing.Graphics]::FromImage($bmp)
     $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
@@ -37,11 +37,11 @@ function Create-Logo($path, $width, $height) {
     $bmp.Dispose()
 }
 
-Create-Logo "$assetsDir\Square150x150Logo.png" 150 150
-Create-Logo "$assetsDir\Square44x44Logo.png" 44 44
-Create-Logo "$assetsDir\Wide310x150Logo.png" 310 150
-Create-Logo "$assetsDir\StoreLogo.png" 50 50
-Create-Logo "$assetsDir\SplashScreen.png" 620 300
+New-Logo "$assetsDir\Square150x150Logo.png" 150 150
+New-Logo "$assetsDir\Square44x44Logo.png" 44 44
+New-Logo "$assetsDir\Wide310x150Logo.png" 310 150
+New-Logo "$assetsDir\StoreLogo.png" 50 50
+New-Logo "$assetsDir\SplashScreen.png" 620 300
 
 Write-Host "Building and publishing packaged MSIX..." -ForegroundColor Cyan
 
@@ -54,7 +54,7 @@ dotnet publish E:\Notifier\Notifier.csproj -c Release -r win-x64 -p:WindowsPacka
 # Find generated MSIX
 $msixFile = Get-ChildItem -Path "E:\Notifier" -Filter "*.msix" -Recurse | Select-Object -First 1
 
-if ($msixFile -eq $null) {
+if ($null -eq $msixFile) {
     Write-Error "MSIX Package generation failed. No .msix file found in build output."
     exit 1
 }
@@ -65,20 +65,20 @@ Write-Host "Generated MSIX Package at: $msixPath" -ForegroundColor Green
 Write-Host "Creating self-signed Code Signing Certificate..." -ForegroundColor Cyan
 
 # Create certificate for publisher CN=Amitendu
-$certSubject = "CN=Amitendu Bikash Dhusiya (Shadow Amitendu)"
+$certSubject = "Amitendu Bikash Dhusiya (Shadow Amitendu)"
 $cert = New-SelfSignedCertificate -Type Custom -Subject $certSubject -HashAlgorithm SHA256 -KeyUsage DigitalSignature -FriendlyName "Notifier Publisher" -CertStoreLocation "Cert:\CurrentUser\My" -TextExtension @("2.5.29.37={text}1.3.6.1.5.5.7.3.3")
 
-if ($cert -eq $null) {
+if ($null -eq $cert) {
     Write-Error "Failed to create self-signed certificate."
     exit 1
 }
 
 Write-Host "Signing the MSIX installer..." -ForegroundColor Cyan
 $signtool = Get-ChildItem -Path "$env:USERPROFILE\.nuget\packages\microsoft.windows.sdk.buildtools" -Filter "signtool.exe" -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.FullName -like "*\x64\*" } | Select-Object -First 1
-if ($signtool -eq $null) {
+if ($null -eq $signtool) {
     $signtool = Get-ChildItem -Path "$env:USERPROFILE\.nuget\packages" -Filter "signtool.exe" -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.FullName -like "*\x64\*" } | Select-Object -First 1
 }
-if ($signtool -eq $null) {
+if ($null -eq $signtool) {
     Write-Error "signtool.exe not found in NuGet cache. Signing failed."
     exit 1
 }
