@@ -278,6 +278,8 @@ namespace Notifier
                     if (result.IsError)
                     {
                         errorCount++;
+                        site.LastStatus = "Error";
+                        site.LastStatusMessage = result.ErrorMessage;
                         LogManager.AddLog(site.Id, site.Name, site.Url, "Error", result.ErrorMessage);
                         if (forceNotification && !isStartup)
                         {
@@ -291,6 +293,13 @@ namespace Notifier
                             updatedCount++;
                             _lastClickedUrl = site.Url;
                             updatedSites.Add(site.Name);
+
+                            site.LastStatus = "Changed";
+                            site.LastStatusMessage = "Changes detected on the webpage.";
+                            site.PreviousContent = site.LastContent; // Move current content to previous
+                            site.LastContent = result.NewContent;
+                            site.LastContentHash = result.NewHash;
+
                             LogManager.AddLog(site.Id, site.Name, site.Url, "Changed", "Changes detected on the webpage.");
 
                             // For periodic background checks, notify immediately on each update
@@ -301,19 +310,23 @@ namespace Notifier
                         }
                         else
                         {
+                            site.LastStatus = "Success";
                             if (!snapshotExists)
                             {
+                                site.LastStatusMessage = "Initial snapshot created. Monitoring started.";
+                                site.LastContent = result.NewContent;
+                                site.LastContentHash = result.NewHash;
+                                site.PreviousContent = string.Empty;
                                 LogManager.AddLog(site.Id, site.Name, site.Url, "Success", "Initial snapshot created. Monitoring started.");
                             }
                             else
                             {
+                                site.LastStatusMessage = "Checked. No changes detected.";
+                                site.LastContent = result.NewContent;
+                                site.LastContentHash = result.NewHash;
                                 LogManager.AddLog(site.Id, site.Name, site.Url, "Success", "Checked. No changes detected.");
                             }
                         }
-
-                        // Save the new hash & content
-                        site.LastContentHash = result.NewHash;
-                        site.LastContent = result.NewContent;
                     }
                 }
 

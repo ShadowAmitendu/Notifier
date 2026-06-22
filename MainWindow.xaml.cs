@@ -30,7 +30,9 @@ namespace Notifier
         private System.Drawing.Icon? _windowIconBig;
 
         public bool CanClose { get; set; } = false;
+        public string DisplayVersion => $"Version {System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1.1.0"}";
         private ObservableCollection<SiteEntry> _sitesList = new();
+        private List<SiteEntry> _allSitesList = new();
         private string? _editingSiteId = null;
         private bool _isMonitoringEnabled = true;
 
@@ -305,14 +307,268 @@ namespace Notifier
         public void LoadSites()
         {
             var config = ConfigManager.Load();
-            _sitesList.Clear();
-            foreach (var site in config.Sites)
-                _sitesList.Add(site);
+            _allSitesList.Clear();
+            _allSitesList.AddRange(config.Sites);
 
-            SitesListView.ItemsSource = _sitesList;
+            if (SitesListView != null)
+            {
+                SitesListView.ItemsSource = _sitesList;
+            }
+
+            ApplyFilterAndSort();
+        }
+
+        private void ApplyFilterAndSort()
+        {
+            if (SearchBox == null || FilterComboBox == null || SortComboBox == null || EmptyTextBlock == null) return;
+
+            string query = SearchBox.Text?.Trim() ?? string.Empty;
+            int filterIdx = FilterComboBox.SelectedIndex; // 0: All, 1: Changed, 2: Success, 3: Error, 4: Pending
+            int sortIdx = SortComboBox.SelectedIndex;     // 0: A-Z, 1: Z-A, 2: Last Checked, 3: Next Check
+
+            // 1. Filter
+            var filtered = new List<SiteEntry>();
+            foreach (var site in _allSitesList)
+            {
+                // Search query matching
+                bool matchesSearch = string.IsNullOrEmpty(query) 
+                    || site.Name.Contains(query, StringComparison.OrdinalIgnoreCase) 
+                    || site.Url.Contains(query, StringComparison.OrdinalIgnoreCase);
+
+                if (!matchesSearch) continue;
+
+                // Status matching
+                bool matchesFilter = filterIdx switch
+                {
+                    1 => site.LastStatus == "Changed",
+                    2 => site.LastStatus == "Success",
+                    3 => site.LastStatus == "Error",
+                    4 => site.LastStatus == "Pending",
+                    _ => true
+                };
+
+                if (matchesFilter)
+                {
+                    filtered.Add(site);
+                }
+            }
+
+            // 2. Sort
+            switch (sortIdx)
+            {
+                case 0: // Name A-Z
+                    filtered.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
+                    break;
+                case 1: // Name Z-A
+                    filtered.Sort((a, b) => string.Compare(b.Name, a.Name, StringComparison.OrdinalIgnoreCase));
+                    break;
+                case 2: // Last Checked (latest first, null last)
+                    filtered.Sort((a, b) => {
+                        if (!a.LastChecked.HasValue && !b.LastChecked.HasValue) return 0;
+                        if (!a.LastChecked.HasValue) return 1;
+                        if (!b.LastChecked.HasValue) return -1;
+                        return b.LastChecked.Value.CompareTo(a.LastChecked.Value);
+                    });
+                    break;
+                case 3: // Next Check (earliest first, null last)
+                    filtered.Sort((a, b) => {
+                        if (!a.NextCheck.HasValue && !b.NextCheck.HasValue) return 0;
+                        if (!a.NextCheck.HasValue) return 1;
+                        if (!b.NextCheck.HasValue) return -1;
+                        return a.NextCheck.Value.CompareTo(b.NextCheck.Value);
+                    });
+                    break;
+            }
+
+            // 3. Update ObservableCollection
+            _sitesList.Clear();
+            foreach (var site in filtered)
+            {
+                _sitesList.Add(site);
+            }
+
+            // Update UI visibility
             EmptyTextBlock.Visibility = _sitesList.Count == 0
                 ? Visibility.Visible
                 : Visibility.Collapsed;
+        }
+
+        private void OnSearchBoxTextChanged(object sender, TextChangedEventArgs e)
+        {
+            ApplyFilterAndSort();
+        }
+
+        private void OnFilterSelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            ApplyFilterAndSort();
+        }
+
+        private void OnSortSelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            ApplyFilterAndSort();
+        }
+
+        private async void OnViewDiffClick(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button button && button.Tag is SiteEntry site)
+            {
+                var oldText = site.PreviousContent;
+                var newText = site.LastContent;
+
+                var diffLines = await Task.Run(() => DiffEngine.ComputeDiff(oldText, newText));
+
+                var dialogContent = new Grid
+                {
+                    Width = 680,
+                    Height = 460,
+                    RowDefinitions = 
+                    {
+                        new RowDefinition { Height = GridLength.Auto },
+                        new RowDefinition { Height = new GridLength(1, GridUnitType.Star) }
+                    }
+                };
+
+                // Header info
+                var headerPanel = new StackPanel { Margin = new Thickness(0, 0, 0, 10) };
+                headerPanel.Children.Add(new TextBlock 
+                { 
+                    Text = $"Comparing previous snapshot vs current snapshot for {site.Name}", 
+                    TextWrapping = TextWrapping.Wrap, 
+                    Margin = new Thickness(0, 0, 0, 4), 
+                    FontSize = 12, 
+                    Foreground = Application.Current.Resources["SystemControlPageTextBaseMediumBrush"] as Brush 
+                });
+                dialogContent.Children.Add(headerPanel);
+                Grid.SetRow(headerPanel, 0);
+
+                // Scrollable container for lines
+                var scrollViewer = new ScrollViewer
+                {
+                    VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                    HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+                    Background = Application.Current.Resources["SystemControlBackgroundChromeMediumLowBrush"] as Brush,
+                    Padding = new Thickness(10),
+                    CornerRadius = new CornerRadius(4)
+                };
+                dialogContent.Children.Add(scrollViewer);
+                Grid.SetRow(scrollViewer, 1);
+
+                // StackPanel to hold all lines
+                var linesPanel = new StackPanel { Spacing = 2 };
+
+                Brush GetBrushFromHex(string hex)
+                {
+                    if (string.IsNullOrEmpty(hex) || hex.Length < 7) 
+                        return new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(0, 0, 0, 0));
+                    
+                    try
+                    {
+                        if (hex.Length == 9) // #AARRGGBB
+                        {
+                            byte a = byte.Parse(hex.Substring(1, 2), System.Globalization.NumberStyles.HexNumber);
+                            byte r = byte.Parse(hex.Substring(3, 2), System.Globalization.NumberStyles.HexNumber);
+                            byte g = byte.Parse(hex.Substring(5, 2), System.Globalization.NumberStyles.HexNumber);
+                            byte b = byte.Parse(hex.Substring(7, 2), System.Globalization.NumberStyles.HexNumber);
+                            return new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(a, r, g, b));
+                        }
+                        else if (hex.Length == 7) // #RRGGBB
+                        {
+                            byte r = byte.Parse(hex.Substring(1, 2), System.Globalization.NumberStyles.HexNumber);
+                            byte g = byte.Parse(hex.Substring(3, 2), System.Globalization.NumberStyles.HexNumber);
+                            byte b = byte.Parse(hex.Substring(5, 2), System.Globalization.NumberStyles.HexNumber);
+                            return new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, r, g, b));
+                        }
+                    }
+                    catch
+                    {
+                        // Ignore
+                    }
+                    return new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(0, 0, 0, 0));
+                }
+
+                foreach (var line in diffLines)
+                {
+                    var row = new Grid
+                    {
+                        ColumnDefinitions =
+                        {
+                            new ColumnDefinition { Width = new GridLength(36) },
+                            new ColumnDefinition { Width = new GridLength(36) },
+                            new ColumnDefinition { Width = new GridLength(16) },
+                            new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }
+                        },
+                        Background = GetBrushFromHex(line.BackgroundColor),
+                        Padding = new Thickness(4, 2, 4, 2)
+                    };
+
+                    var textBrush = GetBrushFromHex(line.ForegroundColor);
+
+                    // Old line no
+                    var tbOld = new TextBlock 
+                    { 
+                        Text = line.DisplayOldLine, 
+                        FontSize = 11, 
+                        Foreground = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 128, 128, 128)),
+                        HorizontalAlignment = HorizontalAlignment.Right, 
+                        Margin = new Thickness(0, 0, 8, 0),
+                        FontFamily = new FontFamily("Consolas")
+                    };
+                    Grid.SetColumn(tbOld, 0);
+                    row.Children.Add(tbOld);
+
+                    // New line no
+                    var tbNew = new TextBlock 
+                    { 
+                        Text = line.DisplayNewLine, 
+                        FontSize = 11, 
+                        Foreground = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 128, 128, 128)),
+                        HorizontalAlignment = HorizontalAlignment.Right, 
+                        Margin = new Thickness(0, 0, 8, 0),
+                        FontFamily = new FontFamily("Consolas")
+                    };
+                    Grid.SetColumn(tbNew, 1);
+                    row.Children.Add(tbNew);
+
+                    // Prefix (+/-)
+                    var tbPrefix = new TextBlock 
+                    { 
+                        Text = line.LinePrefix, 
+                        FontSize = 12, 
+                        FontWeight = Microsoft.UI.Text.FontWeights.Bold,
+                        Foreground = textBrush, 
+                        HorizontalAlignment = HorizontalAlignment.Center,
+                        FontFamily = new FontFamily("Consolas")
+                    };
+                    Grid.SetColumn(tbPrefix, 2);
+                    row.Children.Add(tbPrefix);
+
+                    // Text content
+                    var tbText = new TextBlock 
+                    { 
+                        Text = line.Text, 
+                        FontSize = 11, 
+                        Foreground = textBrush, 
+                        TextWrapping = TextWrapping.Wrap,
+                        FontFamily = new FontFamily("Consolas")
+                    };
+                    Grid.SetColumn(tbText, 3);
+                    row.Children.Add(tbText);
+
+                    linesPanel.Children.Add(row);
+                }
+
+                scrollViewer.Content = linesPanel;
+
+                var dialog = new ContentDialog
+                {
+                    Title = "Visual Content Diff",
+                    Content = dialogContent,
+                    CloseButtonText = "Close",
+                    XamlRoot = this.Content.XamlRoot
+                };
+
+                await dialog.ShowAsync();
+            }
         }
 
         private void OnAddSiteNavClick(object sender, RoutedEventArgs e)
@@ -804,6 +1060,131 @@ namespace Notifier
         private void OnSettingsDiscardClick(object sender, RoutedEventArgs e)
         {
             LoadSettingsForm(); // reload from disk = discard edits
+        }
+
+        private async void OnExportConfigClick(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var savePicker = new Windows.Storage.Pickers.FileSavePicker();
+                
+                // WinUI 3 HWND association
+                var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+                WinRT.Interop.InitializeWithWindow.Initialize(savePicker, hwnd);
+
+                savePicker.SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.DocumentsLibrary;
+                savePicker.FileTypeChoices.Add("JSON Files", new List<string> { ".json" });
+                savePicker.SuggestedFileName = "notifier_config_backup.json";
+
+                var file = await savePicker.PickSaveFileAsync();
+                if (file != null)
+                {
+                    var config = ConfigManager.Load();
+                    var options = new System.Text.Json.JsonSerializerOptions { WriteIndented = true };
+                    string json = System.Text.Json.JsonSerializer.Serialize(config, options);
+
+                    await Windows.Storage.FileIO.WriteTextAsync(file, json);
+
+                    SettingsValidationText.Text = "Configuration exported successfully!";
+                    SettingsValidationText.Foreground = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 16, 185, 129)); // Green-500
+                    SettingsValidationText.Visibility = Visibility.Visible;
+
+                    _ = Task.Run(async () =>
+                    {
+                        await Task.Delay(4000);
+                        DispatcherQueue.TryEnqueue(() =>
+                        {
+                            SettingsValidationText.Visibility = Visibility.Collapsed;
+                        });
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                ShowSettingsValidation($"Failed to export: {ex.Message}");
+            }
+        }
+
+        private async void OnImportConfigClick(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var openPicker = new Windows.Storage.Pickers.FileOpenPicker();
+                
+                // WinUI 3 HWND association
+                var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+                WinRT.Interop.InitializeWithWindow.Initialize(openPicker, hwnd);
+
+                openPicker.ViewMode = Windows.Storage.Pickers.PickerViewMode.List;
+                openPicker.SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.DocumentsLibrary;
+                openPicker.FileTypeFilter.Add(".json");
+
+                var file = await openPicker.PickSingleFileAsync();
+                if (file != null)
+                {
+                    string json = await Windows.Storage.FileIO.ReadTextAsync(file);
+                    
+                    // Deserialize and validate
+                    var importedData = System.Text.Json.JsonSerializer.Deserialize<ConfigData>(json);
+                    if (importedData == null || importedData.Sites == null || importedData.Settings == null)
+                    {
+                        ShowSettingsValidation("Invalid configuration file format.");
+                        return;
+                    }
+
+                    // Prompt user for confirmation before importing
+                    var confirmDialog = new ContentDialog
+                    {
+                        Title = "Import Configuration",
+                        Content = $"This will merge {importedData.Sites.Count} imported site(s) and overwrite your current settings. Do you want to proceed?",
+                        PrimaryButtonText = "Import & Merge",
+                        CloseButtonText = "Cancel",
+                        DefaultButton = ContentDialogButton.Primary,
+                        XamlRoot = this.Content.XamlRoot
+                    };
+
+                    var dialogResult = await confirmDialog.ShowAsync();
+                    if (dialogResult == ContentDialogResult.Primary)
+                    {
+                        var config = ConfigManager.Load();
+                        
+                        // Merge sites (by ID or URL to avoid duplicates)
+                        int addedCount = 0;
+                        foreach (var importedSite in importedData.Sites)
+                        {
+                            if (!config.Sites.Exists(s => s.Id == importedSite.Id || s.Url.Equals(importedSite.Url, StringComparison.OrdinalIgnoreCase)))
+                            {
+                                config.Sites.Add(importedSite);
+                                addedCount++;
+                            }
+                        }
+
+                        // Overwrite global settings
+                        config.Settings = importedData.Settings;
+
+                        ConfigManager.Save(config);
+
+                        // Refresh Startup helper registry settings
+                        StartupHelper.SetStartup(config.Settings.RunAtStartup);
+
+                        // Reconfigure timers
+                        if (Application.Current is App myApp)
+                            myApp.ConfigureTimer();
+
+                        // Reload settings form and sites list
+                        LoadSettingsForm();
+                        LoadSites();
+
+                        SettingsValidationText.Text = $"Import complete! Merged {addedCount} site(s) and updated settings.";
+                        SettingsValidationText.Foreground = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 16, 185, 129)); // Green-500
+                        SettingsValidationText.Visibility = Visibility.Visible;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                ShowSettingsValidation($"Failed to import: {ex.Message}");
+            }
         }
 
         private void OnSettingsRestoreClick(object sender, RoutedEventArgs e)

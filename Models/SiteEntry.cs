@@ -20,6 +20,9 @@ namespace Notifier.Models
         public string Selector { get; set; } = string.Empty;
         public string LastContentHash { get; set; } = string.Empty;
         public string LastContent { get; set; } = string.Empty;
+        public string PreviousContent { get; set; } = string.Empty;
+        public string LastStatus { get; set; } = "Pending";
+        public string LastStatusMessage { get; set; } = string.Empty;
         public DateTime? LastChecked { get; set; }
 
         // Per-Site Custom Check Intervals
@@ -56,5 +59,36 @@ namespace Notifier.Models
             (Mode == DiffMode.CssSelector && !string.IsNullOrEmpty(Selector)) 
                 ? Microsoft.UI.Xaml.Visibility.Visible 
                 : Microsoft.UI.Xaml.Visibility.Collapsed;
+
+        [JsonIgnore]
+        public string StatusColor => LastStatus switch
+        {
+            "Changed" => "#EF4444", // Red-500
+            "Error" => "#F59E0B",   // Amber-500
+            "Success" => "#10B981", // Green-500
+            _ => "#94A6B8"          // Slate-400 (Pending)
+        };
+
+        [JsonIgnore]
+        public string StatusGlyph => LastStatus switch
+        {
+            "Changed" => "\uE783", // Warning
+            "Error" => "\uE7BA",   // Alert / Error Info
+            "Success" => "\uE73E", // Checkmark
+            _ => "\uE712"          // Info/Clock or similar
+        };
+
+        [JsonIgnore]
+        public bool HasChangesToView => !string.IsNullOrEmpty(PreviousContent) && PreviousContent != LastContent;
+
+        [JsonIgnore]
+        public Microsoft.UI.Xaml.Visibility ViewDiffButtonVisibility => HasChangesToView 
+            ? Microsoft.UI.Xaml.Visibility.Visible 
+            : Microsoft.UI.Xaml.Visibility.Collapsed;
+
+        [JsonIgnore]
+        public Microsoft.UI.Xaml.Visibility StatusMessageVisibility => !string.IsNullOrEmpty(LastStatusMessage) 
+            ? Microsoft.UI.Xaml.Visibility.Visible 
+            : Microsoft.UI.Xaml.Visibility.Collapsed;
     }
 }

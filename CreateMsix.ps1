@@ -1,6 +1,39 @@
 # Ensure System.Drawing is loaded
 Add-Type -AssemblyName System.Drawing
 
+Write-Host "Synchronizing version from Notifier.csproj to Package.appxmanifest..." -ForegroundColor Cyan
+$csprojPath = "E:\Notifier\Notifier.csproj"
+$manifestPath = "E:\Notifier\Package.appxmanifest"
+
+if (Test-Path $csprojPath) {
+    [xml]$csproj = Get-Content -Path $csprojPath -Raw
+    $versionNode = $csproj.SelectSingleNode("//Version")
+    if ($null -ne $versionNode) {
+        $version = $versionNode.InnerText.Trim()
+        Write-Host "Found version $version in Notifier.csproj" -ForegroundColor Green
+        
+        # MSIX versions require 4 parts (e.g. 1.0.0.0)
+        $parts = $version.Split('.')
+        while ($parts.Count -lt 4) {
+            $parts += "0"
+        }
+        $appxVersion = ($parts[0..3] -join ".")
+        
+        if (Test-Path $manifestPath) {
+            [xml]$manifest = Get-Content -Path $manifestPath -Raw
+            $manifest.Package.Identity.Version = $appxVersion
+            $manifest.Save($manifestPath)
+            Write-Host "Updated Package.appxmanifest identity version to $appxVersion" -ForegroundColor Green
+        } else {
+            Write-Warning "Package.appxmanifest not found at $manifestPath"
+        }
+    } else {
+        Write-Warning "Could not find <Version> tag in Notifier.csproj"
+    }
+} else {
+    Write-Warning "Notifier.csproj not found at $csprojPath"
+}
+
 Write-Host "Creating Assets directory and generating logo images..." -ForegroundColor Cyan
 
 $assetsDir = "E:\Notifier\Assets"
