@@ -100,6 +100,10 @@
                     <NavigationViewItem.Icon><SymbolIcon Symbol="Add"/></NavigationViewItem.Icon>
                 </NavigationViewItem>
 
+                <NavigationViewItem x:Name="NavLogs" Tag="Logs" Content="History Logs">
+                    <NavigationViewItem.Icon><SymbolIcon Symbol="AllApps"/></NavigationViewItem.Icon>
+                </NavigationViewItem>
+
                 <NavigationViewItem x:Name="NavHelp" Tag="Help" Content="Help &amp; Docs">
                     <NavigationViewItem.Icon><SymbolIcon Symbol="Help"/></NavigationViewItem.Icon>
                 </NavigationViewItem>
@@ -202,6 +206,12 @@
                                                     <TextBlock Text="{x:Bind DisplayMode}"
                                                                Style="{ThemeResource CaptionTextBlockStyle}"
                                                                Foreground="{ThemeResource SystemControlPageTextBaseMediumBrush}"/>
+                                                    <TextBlock Text="•"
+                                                               Style="{ThemeResource CaptionTextBlockStyle}"
+                                                               Foreground="{ThemeResource SystemControlPageTextBaseMediumBrush}"/>
+                                                    <TextBlock Text="{x:Bind DisplayInterval}"
+                                                               Style="{ThemeResource CaptionTextBlockStyle}"
+                                                               Foreground="{ThemeResource SystemControlPageTextBaseMediumBrush}"/>
                                                 </StackPanel>
                                             </StackPanel>
                                             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
@@ -221,6 +231,110 @@
                                                     </StackPanel>
                                                 </Button>
                                             </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+                    </Grid>
+
+                    <!-- ─────────────────── Logs Page ─────────────────── -->
+                    <Grid x:Name="LogsPage" Padding="24,16,24,16" Visibility="Collapsed">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <Grid Grid.Row="0" Margin="0,0,0,16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0"
+                                       Text="History Logs"
+                                       Style="{ThemeResource TitleTextBlockStyle}"
+                                       FontWeight="SemiBold"
+                                       VerticalAlignment="Center"/>
+                            <Button Grid.Column="1"
+                                    Click="OnClearLogsClick"
+                                    Style="{ThemeResource DefaultButtonStyle}"
+                                    VerticalAlignment="Center"
+                                    Height="32" Padding="12,0,12,0" CornerRadius="4">
+                                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                    <FontIcon Glyph="&#xE74D;" FontSize="12"/>
+                                    <TextBlock Text="Clear Logs" FontSize="12" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Button>
+                        </Grid>
+
+                        <!-- Empty logs state -->
+                        <TextBlock x:Name="EmptyLogsTextBlock"
+                                   Grid.Row="1"
+                                   Text="No checks have run yet."
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                   Style="{ThemeResource BodyTextBlockStyle}"
+                                   Foreground="{ThemeResource SystemControlPageTextBaseMediumBrush}"
+                                   Visibility="Collapsed" TextAlignment="Center"/>
+
+                        <!-- Logs list -->
+                        <ListView x:Name="LogsListView"
+                                  Grid.Row="1"
+                                  SelectionMode="None"
+                                  Margin="0,0,0,8"
+                                  IsItemClickEnabled="False">
+                            <ListView.ItemContainerTransitions>
+                                <TransitionCollection>
+                                    <EntranceThemeTransition IsStaggeringEnabled="True"/>
+                                    <RepositionThemeTransition IsStaggeringEnabled="False"/>
+                                </TransitionCollection>
+                            </ListView.ItemContainerTransitions>
+                            <ListView.ItemTemplate>
+                                <DataTemplate x:DataType="models:CheckLogEntry">
+                                    <Border BorderBrush="{ThemeResource SystemControlBackgroundBaseLowBrush}"
+                                            BorderThickness="1" CornerRadius="6"
+                                            Padding="12,8" Margin="0,2,0,4"
+                                            Background="{ThemeResource SystemControlBackgroundChromeMediumLowBrush}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            
+                                            <!-- Status Icon -->
+                                            <FontIcon Grid.Column="0" 
+                                                      Glyph="{x:Bind StatusGlyph}" 
+                                                      Foreground="{x:Bind StatusColor}" 
+                                                      FontSize="16" 
+                                                      VerticalAlignment="Center" 
+                                                      Margin="0,0,12,0"/>
+                                            
+                                            <!-- Info -->
+                                            <StackPanel Grid.Column="1" Spacing="2">
+                                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                                    <TextBlock Text="{x:Bind SiteName}"
+                                                               FontWeight="SemiBold"
+                                                               FontSize="13"/>
+                                                    <TextBlock Text="•"
+                                                               Foreground="{ThemeResource SystemControlPageTextBaseMediumBrush}"
+                                                               FontSize="13"/>
+                                                    <TextBlock Text="{x:Bind Status}"
+                                                               Foreground="{x:Bind StatusColor}"
+                                                               FontWeight="SemiBold"
+                                                               FontSize="13"/>
+                                                </StackPanel>
+                                                <TextBlock Text="{x:Bind Details}"
+                                                           FontSize="12"
+                                                           Foreground="{ThemeResource SystemControlPageTextBaseMediumBrush}"
+                                                           TextWrapping="Wrap"/>
+                                            </StackPanel>
+                                            
+                                            <!-- Timestamp -->
+                                            <TextBlock Grid.Column="2" 
+                                                       Text="{x:Bind DisplayTime}" 
+                                                       FontSize="11" 
+                                                       Foreground="{ThemeResource SystemControlPageTextBaseMediumBrush}" 
+                                                       VerticalAlignment="Center"/>
                                         </Grid>
                                     </Border>
                                 </DataTemplate>
@@ -259,11 +373,86 @@
                                 <ComboBox x:Name="AddModeComboBox"
                                           Header="Monitoring Mode"
                                           SelectedIndex="0"
-                                          Width="560" HorizontalAlignment="Left">
+                                          Width="560" HorizontalAlignment="Left"
+                                          SelectionChanged="OnAddModeSelectionChanged">
                                     <ComboBoxItem Content="Text Content (Detects visible content changes)"/>
                                     <ComboBoxItem Content="DOM / HTML Structure (Detects code, tags, and links changes)"/>
                                     <ComboBoxItem Content="Both (Detects both visible text and HTML changes)"/>
+                                    <ComboBoxItem Content="CSS Selector / XPath (Monitor a specific webpage element)"/>
                                 </ComboBox>
+
+                                <TextBox x:Name="AddSelectorTextBox"
+                                         Header="CSS Selector or XPath"
+                                         PlaceholderText="e.g. #content, .article-body, or //div[@id='main']"
+                                         Width="560" HorizontalAlignment="Left"
+                                         Visibility="Collapsed"/>
+
+                                <!-- Custom Interval Settings -->
+                                <CheckBox x:Name="AddCustomIntervalCheck"
+                                          Content="Use custom check interval for this site"
+                                          Margin="0,4,0,0"
+                                          Checked="OnAddCustomIntervalCheckChanged"
+                                          Unchecked="OnAddCustomIntervalCheckChanged"/>
+
+                                <StackPanel x:Name="AddCustomIntervalPanel" Spacing="6" Visibility="Collapsed" Margin="12,0,0,0">
+                                    <TextBlock Text="Custom Check Interval"
+                                               Style="{ThemeResource BodyTextBlockStyle}"
+                                               FontWeight="SemiBold"/>
+                                    <Grid ColumnSpacing="10" Width="548" HorizontalAlignment="Left">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <NumberBox x:Name="AddIntervalBox"
+                                                   Grid.Column="0"
+                                                   Value="60" Minimum="1" Maximum="1440"
+                                                   SpinButtonPlacementMode="Compact"
+                                                   HorizontalAlignment="Stretch"/>
+                                        <ComboBox x:Name="AddIntervalUnit"
+                                                  Grid.Column="1"
+                                                  SelectedIndex="0"
+                                                  HorizontalAlignment="Stretch">
+                                            <ComboBoxItem Content="Minutes"/>
+                                            <ComboBoxItem Content="Hours"/>
+                                        </ComboBox>
+                                    </Grid>
+                                </StackPanel>
+
+                                <!-- Advanced Request Options Expander -->
+                                <Expander Header="Advanced Request Options"
+                                          HorizontalAlignment="Left"
+                                          Width="560"
+                                          Margin="0,8,0,0">
+                                    <StackPanel Spacing="12" Padding="16">
+                                        <ComboBox x:Name="AddMethodComboBox"
+                                                  Header="HTTP Request Method"
+                                                  SelectedIndex="0"
+                                                  Width="500"
+                                                  SelectionChanged="OnAddMethodChanged">
+                                            <ComboBoxItem Content="GET"/>
+                                            <ComboBoxItem Content="POST"/>
+                                        </ComboBox>
+
+                                        <TextBox x:Name="AddHeadersTextBox"
+                                                 Header="Custom Request Headers (one per line, e.g. User-Agent: CustomBot)"
+                                                 PlaceholderText="HeaderName: HeaderValue"
+                                                 AcceptsReturn="True"
+                                                 Height="80"
+                                                 Width="500"/>
+
+                                        <TextBox x:Name="AddCookiesTextBox"
+                                                 Header="Custom Cookies (Cookie Header String)"
+                                                 PlaceholderText="sessionid=12345abc; key=value"
+                                                 Width="500"/>
+
+                                        <TextBox x:Name="AddBodyTextBox"
+                                                 Header="Request Body Content (POST only)"
+                                                 AcceptsReturn="True"
+                                                 Height="80"
+                                                 Width="500"
+                                                 Visibility="Collapsed"/>
+                                    </StackPanel>
+                                </Expander>
 
                                 <TextBlock x:Name="AddValidationText"
                                            Foreground="#DC2626"
@@ -510,7 +699,7 @@
                                     <FontIcon Glyph="&#xE774;" FontSize="48" Foreground="{ThemeResource SystemControlHighlightAccentBrush}"/>
                                     <StackPanel Spacing="2">
                                         <TextBlock Text="Notifier" Style="{ThemeResource SubtitleTextBlockStyle}" FontWeight="SemiBold" FontSize="20"/>
-                                        <TextBlock Text="Version 1.0.8" Style="{ThemeResource BodyTextBlockStyle}" Foreground="{ThemeResource SystemControlPageTextBaseMediumBrush}"/>
+                                        <TextBlock Text="Version 1.0.9" Style="{ThemeResource BodyTextBlockStyle}" Foreground="{ThemeResource SystemControlPageTextBaseMediumBrush}"/>
                                     </StackPanel>
                                 </StackPanel>
 

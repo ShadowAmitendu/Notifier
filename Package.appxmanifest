@@ -9,7 +9,7 @@
   <Identity
     Name="SiteUpdateNotifier"
     Publisher="CN=Amitendu Bikash Dhusiya (Shadow Amitendu)"
-    Version="1.0.8.0" />
+    Version="1.0.9.0" />
 
   <Properties>
     <DisplayName>Notifier</DisplayName>

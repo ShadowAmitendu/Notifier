@@ -22,6 +22,17 @@ namespace Notifier.Models
         public string LastContent { get; set; } = string.Empty;
         public DateTime? LastChecked { get; set; }
 
+        // Per-Site Custom Check Intervals
+        public bool UseCustomInterval { get; set; } = false;
+        public int CustomIntervalMinutes { get; set; } = 60;
+        public DateTime? NextCheck { get; set; }
+
+        // Advanced HTTP options
+        public string HttpMethod { get; set; } = "GET";
+        public string CustomHeaders { get; set; } = string.Empty;
+        public string CustomCookies { get; set; } = string.Empty;
+        public string RequestBody { get; set; } = string.Empty;
+
         // Helper properties for XAML data binding
         [JsonIgnore]
         public string DisplayMode => Mode == DiffMode.FullPage 
@@ -32,6 +43,13 @@ namespace Notifier.Models
         public string DisplayLastChecked => LastChecked.HasValue 
             ? $"Checked: {LastChecked.Value:g}" 
             : "Checked: Never";
+
+        [JsonIgnore]
+        public string DisplayInterval => UseCustomInterval
+            ? (CustomIntervalMinutes >= 60 && CustomIntervalMinutes % 60 == 0 
+                ? $"Interval: {CustomIntervalMinutes / 60}h" 
+                : $"Interval: {CustomIntervalMinutes}m")
+            : "Interval: Global";
 
         [JsonIgnore]
         public Microsoft.UI.Xaml.Visibility SelectorVisibility => 

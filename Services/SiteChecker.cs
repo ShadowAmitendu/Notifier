@@ -30,13 +30,6 @@ namespace Notifier.Services
                 AutomaticDecompression = System.Net.DecompressionMethods.All
             };
             _httpClient = new HttpClient(handler);
-            _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
-            _httpClient.DefaultRequestHeaders.CacheControl = new System.Net.Http.Headers.CacheControlHeaderValue
-            {
-                NoCache = true,
-                NoStore = true
-            };
-            _httpClient.DefaultRequestHeaders.Pragma.ParseAdd("no-cache");
             _httpClient.Timeout = TimeSpan.FromSeconds(30);
         }
 
@@ -56,8 +49,86 @@ namespace Notifier.Services
                 }
                 string snapshotPath = Path.Combine(snapshotsDir, $"{site.Id}.html");
 
-                // Fetch fresh live HTML (no-cache headers are set)
-                string html = await _httpClient.GetStringAsync(site.Url);
+                // Construct customized HTTP request
+                var request = new HttpRequestMessage(new HttpMethod(string.IsNullOrEmpty(site.HttpMethod) ? "GET" : site.HttpMethod), site.Url);
+                
+                // Add standard cache control headers
+                request.Headers.CacheControl = new System.Net.Http.Headers.CacheControlHeaderValue
+                {
+                    NoCache = true,
+                    NoStore = true
+                };
+                request.Headers.Pragma.ParseAdd("no-cache");
+
+                // Custom headers
+                bool hasUserAgent = false;
+                if (!string.IsNullOrEmpty(site.CustomHeaders))
+                {
+                    using var reader = new StringReader(site.CustomHeaders);
+                    string? line;
+                    while ((line = reader.ReadLine()) != null)
+                    {
+                        int colonIdx = line.IndexOf(':');
+                        if (colonIdx > 0)
+                        {
+                            string key = line.Substring(0, colonIdx).Trim();
+                            string val = line.Substring(colonIdx + 1).Trim();
+                            
+                            if (key.Equals("User-Agent", StringComparison.OrdinalIgnoreCase))
+                            {
+                                hasUserAgent = true;
+                            }
+                            
+                            // Content-Type is set on request.Content rather than headers
+                            if (!key.Equals("Content-Type", StringComparison.OrdinalIgnoreCase))
+                            {
+                                request.Headers.TryAddWithoutValidation(key, val);
+                            }
+                        }
+                    }
+                }
+
+                // Default User-Agent if not overridden
+                if (!hasUserAgent)
+                {
+                    request.Headers.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+                }
+
+                // Custom cookies
+                if (!string.IsNullOrEmpty(site.CustomCookies))
+                {
+                    request.Headers.TryAddWithoutValidation("Cookie", site.CustomCookies);
+                }
+
+                // Request body for POST requests
+                if (request.Method == HttpMethod.Post)
+                {
+                    string contentType = "application/json";
+                    if (!string.IsNullOrEmpty(site.CustomHeaders))
+                    {
+                        using var reader = new StringReader(site.CustomHeaders);
+                        string? line;
+                        while ((line = reader.ReadLine()) != null)
+                        {
+                            int colonIdx = line.IndexOf(':');
+                            if (colonIdx > 0)
+                            {
+                                string key = line.Substring(0, colonIdx).Trim();
+                                if (key.Equals("Content-Type", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    contentType = line.Substring(colonIdx + 1).Trim();
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    request.Content = new StringContent(site.RequestBody ?? string.Empty, Encoding.UTF8, contentType);
+                }
+
+                // Fetch fresh live HTML
+                using var response = await _httpClient.SendAsync(request);
+                response.EnsureSuccessStatusCode();
+                string html = await response.Content.ReadAsStringAsync();
 
                 var doc = new HtmlAgilityPack.HtmlDocument();
                 doc.LoadHtml(html);

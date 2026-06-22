@@ -156,6 +156,12 @@ namespace Notifier
                     }
                     break;
 
+                case "Logs":
+                    NavView.SelectedItem = NavLogs;
+                    ShowPage(LogsPage);
+                    LoadLogs();
+                    break;
+
                 case "Settings":
                     NavView.SelectedItem = NavSettings;
                     ShowPage(SettingsPage);
@@ -183,6 +189,7 @@ namespace Notifier
             SettingsPage.Visibility  = Visibility.Collapsed;
             HelpPage.Visibility      = Visibility.Collapsed;
             AboutPage.Visibility     = Visibility.Collapsed;
+            if (LogsPage != null) LogsPage.Visibility = Visibility.Collapsed;
 
             // Setup initial values for animation
             page.Opacity = 0.0;
@@ -242,30 +249,54 @@ namespace Notifier
                 StatusBarText.Text = "Monitoring Disabled";
                 StatusBarCountdownText.Text = string.Empty;
             }
-            else if (app.NextCheckTime.HasValue)
+            else
             {
-                var remaining = app.NextCheckTime.Value - DateTime.Now;
-                StatusBarIcon.Fill = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 34, 197, 94)); // green
-                StatusBarText.Text = "Monitoring Active";
-
-                if (remaining.TotalSeconds <= 0)
+                DateTime? nextCheck = null;
+                string nextSiteName = string.Empty;
+                foreach (var s in config.Sites)
                 {
-                    StatusBarCountdownText.Text = "Checking now...";
+                    if (s.NextCheck.HasValue)
+                    {
+                        if (nextCheck == null || s.NextCheck.Value < nextCheck.Value)
+                        {
+                            nextCheck = s.NextCheck.Value;
+                            nextSiteName = s.Name;
+                        }
+                    }
+                    else
+                    {
+                        nextCheck = DateTime.Now;
+                        nextSiteName = s.Name;
+                        break;
+                    }
                 }
-                else if (remaining.TotalHours >= 1)
+
+                if (nextCheck.HasValue)
                 {
-                    StatusBarCountdownText.Text = $"Next check in {(int)remaining.TotalHours}h {remaining.Minutes:D2}m {remaining.Seconds:D2}s";
+                    var remaining = nextCheck.Value - DateTime.Now;
+                    StatusBarIcon.Fill = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 34, 197, 94)); // green
+                    StatusBarText.Text = "Monitoring Active";
+
+                    string siteSuffix = string.IsNullOrEmpty(nextSiteName) ? "" : $" ({nextSiteName})";
+                    if (remaining.TotalSeconds <= 0)
+                    {
+                        StatusBarCountdownText.Text = $"Checking now...{siteSuffix}";
+                    }
+                    else if (remaining.TotalHours >= 1)
+                    {
+                        StatusBarCountdownText.Text = $"Next check in {(int)remaining.TotalHours}h {remaining.Minutes:D2}m {remaining.Seconds:D2}s{siteSuffix}";
+                    }
+                    else
+                    {
+                        StatusBarCountdownText.Text = $"Next check in {remaining.Minutes:D2}m {remaining.Seconds:D2}s{siteSuffix}";
+                    }
                 }
                 else
                 {
-                    StatusBarCountdownText.Text = $"Next check in {remaining.Minutes:D2}m {remaining.Seconds:D2}s";
+                    StatusBarIcon.Fill = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 34, 197, 94));
+                    StatusBarText.Text = "Monitoring Active";
+                    StatusBarCountdownText.Text = "No sites scheduled";
                 }
-            }
-            else
-            {
-                StatusBarIcon.Fill = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 34, 197, 94));
-                StatusBarText.Text = "Monitoring Active";
-                StatusBarCountdownText.Text = string.Empty;
             }
         }
 
@@ -371,6 +402,27 @@ namespace Notifier
             AddNameTextBox.Text     = string.Empty;
             AddUrlTextBox.Text      = string.Empty;
             if (AddModeComboBox != null) AddModeComboBox.SelectedIndex = 0;
+            
+            if (AddSelectorTextBox != null)
+            {
+                AddSelectorTextBox.Text = string.Empty;
+                AddSelectorTextBox.Visibility = Visibility.Collapsed;
+            }
+
+            if (AddCustomIntervalCheck != null) AddCustomIntervalCheck.IsChecked = false;
+            if (AddCustomIntervalPanel != null) AddCustomIntervalPanel.Visibility = Visibility.Collapsed;
+            if (AddIntervalBox != null) AddIntervalBox.Value = 60;
+            if (AddIntervalUnit != null) AddIntervalUnit.SelectedIndex = 0;
+
+            if (AddMethodComboBox != null) AddMethodComboBox.SelectedIndex = 0;
+            if (AddHeadersTextBox != null) AddHeadersTextBox.Text = string.Empty;
+            if (AddCookiesTextBox != null) AddCookiesTextBox.Text = string.Empty;
+            if (AddBodyTextBox != null)
+            {
+                AddBodyTextBox.Text = string.Empty;
+                AddBodyTextBox.Visibility = Visibility.Collapsed;
+            }
+
             AddValidationText.Visibility     = Visibility.Collapsed;
             AddValidationText.Text           = string.Empty;
         }
@@ -383,7 +435,56 @@ namespace Notifier
 
                 AddNameTextBox.Text = site.Name;
                 AddUrlTextBox.Text = site.Url;
-                if (AddModeComboBox != null) AddModeComboBox.SelectedIndex = site.Mode == DiffMode.DomDiff ? 1 : (site.Mode == DiffMode.Both ? 2 : 0);
+                
+                int modeIdx = site.Mode switch
+                {
+                    DiffMode.DomDiff => 1,
+                    DiffMode.Both => 2,
+                    DiffMode.CssSelector => 3,
+                    _ => 0
+                };
+                if (AddModeComboBox != null) AddModeComboBox.SelectedIndex = modeIdx;
+
+                if (AddSelectorTextBox != null)
+                {
+                    AddSelectorTextBox.Text = site.Selector;
+                    AddSelectorTextBox.Visibility = site.Mode == DiffMode.CssSelector ? Visibility.Visible : Visibility.Collapsed;
+                }
+
+                if (AddCustomIntervalCheck != null) AddCustomIntervalCheck.IsChecked = site.UseCustomInterval;
+                if (AddCustomIntervalPanel != null)
+                {
+                    AddCustomIntervalPanel.Visibility = site.UseCustomInterval ? Visibility.Visible : Visibility.Collapsed;
+                }
+
+                if (site.UseCustomInterval)
+                {
+                    if (site.CustomIntervalMinutes >= 60 && site.CustomIntervalMinutes % 60 == 0)
+                    {
+                        if (AddIntervalBox != null) AddIntervalBox.Value = site.CustomIntervalMinutes / 60;
+                        if (AddIntervalUnit != null) AddIntervalUnit.SelectedIndex = 1; // Hours
+                    }
+                    else
+                    {
+                        if (AddIntervalBox != null) AddIntervalBox.Value = site.CustomIntervalMinutes;
+                        if (AddIntervalUnit != null) AddIntervalUnit.SelectedIndex = 0; // Minutes
+                    }
+                }
+                else
+                {
+                    if (AddIntervalBox != null) AddIntervalBox.Value = 60;
+                    if (AddIntervalUnit != null) AddIntervalUnit.SelectedIndex = 0;
+                }
+
+                if (AddMethodComboBox != null) AddMethodComboBox.SelectedIndex = site.HttpMethod == "POST" ? 1 : 0;
+                if (AddHeadersTextBox != null) AddHeadersTextBox.Text = site.CustomHeaders;
+                if (AddCookiesTextBox != null) AddCookiesTextBox.Text = site.CustomCookies;
+                if (AddBodyTextBox != null)
+                {
+                    AddBodyTextBox.Text = site.RequestBody;
+                    AddBodyTextBox.Visibility = site.HttpMethod == "POST" ? Visibility.Visible : Visibility.Collapsed;
+                }
+
                 AddValidationText.Visibility = Visibility.Collapsed;
 
                 AddSiteTitleText.Text = "Edit Site Details";
@@ -412,6 +513,40 @@ namespace Notifier
                 return;
             }
 
+            var selectedMode = AddModeComboBox.SelectedIndex switch
+            {
+                1 => DiffMode.DomDiff,
+                2 => DiffMode.Both,
+                3 => DiffMode.CssSelector,
+                _ => DiffMode.FullPage
+            };
+
+            string selector = AddSelectorTextBox?.Text?.Trim() ?? string.Empty;
+            if (selectedMode == DiffMode.CssSelector && string.IsNullOrEmpty(selector))
+            {
+                ShowAddValidation("Please enter a CSS Selector or XPath.");
+                return;
+            }
+
+            bool useCustomInterval = AddCustomIntervalCheck?.IsChecked == true;
+            int customIntervalMinutes = 60;
+            if (useCustomInterval)
+            {
+                double intervalVal = AddIntervalBox?.Value ?? 60;
+                if (double.IsNaN(intervalVal) || intervalVal < 1)
+                {
+                    ShowAddValidation("Custom interval must be at least 1.");
+                    return;
+                }
+                int value = (int)intervalVal;
+                customIntervalMinutes = AddIntervalUnit?.SelectedIndex == 1 ? value * 60 : value;
+            }
+
+            string httpMethod = AddMethodComboBox?.SelectedIndex == 1 ? "POST" : "GET";
+            string headers = AddHeadersTextBox?.Text?.Trim() ?? string.Empty;
+            string cookies = AddCookiesTextBox?.Text?.Trim() ?? string.Empty;
+            string requestBody = AddBodyTextBox?.Text ?? string.Empty;
+
             var config = ConfigManager.Load();
 
             if (!string.IsNullOrEmpty(_editingSiteId))
@@ -419,13 +554,21 @@ namespace Notifier
                 var site = config.Sites.Find(s => s.Id == _editingSiteId);
                 if (site != null)
                 {
-                    var selectedMode = AddModeComboBox.SelectedIndex == 1 ? DiffMode.DomDiff : (AddModeComboBox.SelectedIndex == 2 ? DiffMode.Both : DiffMode.FullPage);
-                    // If URL or Mode changed, clear the last hash so it gets a fresh check
-                    if (site.Url != url || site.Mode != selectedMode)
+                    bool requestParamsChanged = site.Url != url 
+                        || site.Mode != selectedMode 
+                        || site.Selector != selector
+                        || site.HttpMethod != httpMethod
+                        || site.CustomHeaders != headers
+                        || site.CustomCookies != cookies
+                        || site.RequestBody != requestBody;
+
+                    // If request parameters changed, clear the last hash so it gets a fresh check
+                    if (requestParamsChanged)
                     {
                         site.LastContentHash = string.Empty;
                         site.LastContent = string.Empty;
                         site.LastChecked = null;
+                        site.NextCheck = null;
 
                         // Delete the old HTML snapshot file
                         try
@@ -446,11 +589,22 @@ namespace Notifier
                             System.Diagnostics.Debug.WriteLine($"Failed to delete old snapshot: {ex.Message}");
                         }
                     }
+                    else if (site.UseCustomInterval != useCustomInterval || site.CustomIntervalMinutes != customIntervalMinutes)
+                    {
+                        // Interval changed but params didn't: just reschedule
+                        site.NextCheck = DateTime.Now;
+                    }
 
                     site.Name = name;
                     site.Url = url;
                     site.Mode = selectedMode;
-                    site.Selector = string.Empty;
+                    site.Selector = selector;
+                    site.UseCustomInterval = useCustomInterval;
+                    site.CustomIntervalMinutes = customIntervalMinutes;
+                    site.HttpMethod = httpMethod;
+                    site.CustomHeaders = headers;
+                    site.CustomCookies = cookies;
+                    site.RequestBody = requestBody;
                 }
             }
             else
@@ -459,8 +613,15 @@ namespace Notifier
                 {
                     Name     = name,
                     Url      = url,
-                    Mode     = AddModeComboBox.SelectedIndex == 1 ? DiffMode.DomDiff : (AddModeComboBox.SelectedIndex == 2 ? DiffMode.Both : DiffMode.FullPage),
-                    Selector = string.Empty
+                    Mode     = selectedMode,
+                    Selector = selector,
+                    UseCustomInterval = useCustomInterval,
+                    CustomIntervalMinutes = customIntervalMinutes,
+                    HttpMethod = httpMethod,
+                    CustomHeaders = headers,
+                    CustomCookies = cookies,
+                    RequestBody = requestBody,
+                    NextCheck = null // Will check immediately
                 };
                 config.Sites.Add(newSite);
             }
@@ -765,6 +926,55 @@ namespace Notifier
                     System.Diagnostics.Debug.WriteLine($"Failed to copy: {ex.Message}");
                 }
             }
+        }
+
+        // ─── Add/Edit form event handlers ────────────────────────────────────────
+
+        private void OnAddModeSelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (AddSelectorTextBox != null && AddModeComboBox != null)
+            {
+                AddSelectorTextBox.Visibility = AddModeComboBox.SelectedIndex == 3 
+                    ? Visibility.Visible 
+                    : Visibility.Collapsed;
+            }
+        }
+
+        private void OnAddCustomIntervalCheckChanged(object sender, RoutedEventArgs e)
+        {
+            if (AddCustomIntervalPanel != null && AddCustomIntervalCheck != null)
+            {
+                AddCustomIntervalPanel.Visibility = AddCustomIntervalCheck.IsChecked == true 
+                    ? Visibility.Visible 
+                    : Visibility.Collapsed;
+            }
+        }
+
+        private void OnAddMethodChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (AddBodyTextBox != null && AddMethodComboBox != null)
+            {
+                AddBodyTextBox.Visibility = AddMethodComboBox.SelectedIndex == 1 
+                    ? Visibility.Visible 
+                    : Visibility.Collapsed;
+            }
+        }
+
+        // ─── Logs Management ─────────────────────────────────────────────────────
+
+        public void LoadLogs()
+        {
+            var logs = LogManager.LoadLogs();
+            LogsListView.ItemsSource = logs;
+            EmptyLogsTextBlock.Visibility = logs.Count == 0
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        }
+
+        private void OnClearLogsClick(object sender, RoutedEventArgs e)
+        {
+            LogManager.ClearLogs();
+            LoadLogs();
         }
     }
 }

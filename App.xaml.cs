@@ -34,7 +34,32 @@ namespace Notifier
         private bool _isChecking = false;
 
         public bool IsChecking => _isChecking;
-        public DateTime? NextCheckTime { get; set; }
+        public DateTime? NextCheckTime
+        {
+            get
+            {
+                var config = ConfigManager.Load();
+                if (!config.Settings.IsMonitoringEnabled || config.Sites.Count == 0)
+                {
+                    return null;
+                }
+
+                DateTime? earliest = null;
+                foreach (var site in config.Sites)
+                {
+                    var next = site.NextCheck;
+                    if (next == null)
+                    {
+                        return DateTime.Now; // Due immediately
+                    }
+                    if (earliest == null || next < earliest)
+                    {
+                        earliest = next;
+                    }
+                }
+                return earliest;
+            }
+        }
 
         public static MainWindow? m_mainWindow;
 
@@ -143,14 +168,12 @@ namespace Notifier
 
             if (!config.Settings.IsMonitoringEnabled)
             {
-                NextCheckTime = null;
                 return;
             }
 
-            int minutes = Math.Max(1, config.Settings.CheckIntervalMinutes);
-            _checkTimer.Interval = TimeSpan.FromMinutes(minutes);
+            // Run check timer every 30 seconds to evaluate if any site is due
+            _checkTimer.Interval = TimeSpan.FromSeconds(30);
             _checkTimer.Start();
-            NextCheckTime = DateTime.Now.AddMinutes(minutes);
         }
 
         public static void ShowMainWindow()
@@ -198,9 +221,26 @@ namespace Notifier
                     return;
                 }
 
+                var now = DateTime.Now;
+                var sitesToProcess = new List<SiteEntry>();
+                for (int i = 0; i < config.Sites.Count; i++)
+                {
+                    var site = config.Sites[i];
+                    bool isDue = site.NextCheck == null || site.NextCheck <= now;
+                    if (forceNotification || isStartup || isDue)
+                    {
+                        sitesToProcess.Add(site);
+                    }
+                }
+
+                if (sitesToProcess.Count == 0)
+                {
+                    return;
+                }
+
                 if (isStartup)
                 {
-                    _notifyIcon?.ShowBalloonTip(3000, "Site Notifier", $"App startup: Checking {config.Sites.Count} site(s)...", System.Windows.Forms.ToolTipIcon.Info);
+                    _notifyIcon?.ShowBalloonTip(3000, "Site Notifier", $"App startup: Checking {sitesToProcess.Count} site(s)...", System.Windows.Forms.ToolTipIcon.Info);
                 }
 
                 var random = new Random();
@@ -208,9 +248,9 @@ namespace Notifier
                 int errorCount = 0;
                 var updatedSites = new List<string>();
 
-                for (int i = 0; i < config.Sites.Count; i++)
+                for (int i = 0; i < sitesToProcess.Count; i++)
                 {
-                    var site = config.Sites[i];
+                    var site = sitesToProcess[i];
 
                     // Jitter delay between sites (skipped for the very first site if force/startup)
                     if (config.Settings.MaxJitterSeconds > 0 && (i > 0 || (!forceNotification && !isStartup)))
@@ -219,12 +259,26 @@ namespace Notifier
                         await Task.Delay(jitterMs);
                     }
 
+                    // Check if snapshot exists before checking
+                    string snapshotsDir = Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                        "SiteNotifier",
+                        "Snapshots"
+                    );
+                    string snapshotPath = Path.Combine(snapshotsDir, $"{site.Id}.html");
+                    bool snapshotExists = File.Exists(snapshotPath);
+
                     var result = await SiteChecker.CheckSiteAsync(site);
                     site.LastChecked = DateTime.Now;
+                    
+                    // Schedule next check
+                    int intervalVal = site.UseCustomInterval ? site.CustomIntervalMinutes : config.Settings.CheckIntervalMinutes;
+                    site.NextCheck = DateTime.Now.AddMinutes(Math.Max(1, intervalVal));
 
                     if (result.IsError)
                     {
                         errorCount++;
+                        LogManager.AddLog(site.Id, site.Name, site.Url, "Error", result.ErrorMessage);
                         if (forceNotification && !isStartup)
                         {
                             _notificationService?.ShowError(site.Name, result.ErrorMessage);
@@ -237,11 +291,23 @@ namespace Notifier
                             updatedCount++;
                             _lastClickedUrl = site.Url;
                             updatedSites.Add(site.Name);
+                            LogManager.AddLog(site.Id, site.Name, site.Url, "Changed", "Changes detected on the webpage.");
 
                             // For periodic background checks, notify immediately on each update
                             if (!forceNotification && !isStartup)
                             {
                                 _notificationService?.ShowUpdate(site.Name, site.Url);
+                            }
+                        }
+                        else
+                        {
+                            if (!snapshotExists)
+                            {
+                                LogManager.AddLog(site.Id, site.Name, site.Url, "Success", "Initial snapshot created. Monitoring started.");
+                            }
+                            else
+                            {
+                                LogManager.AddLog(site.Id, site.Name, site.Url, "Success", "Checked. No changes detected.");
                             }
                         }
 
@@ -256,6 +322,7 @@ namespace Notifier
 
                 // Refresh MainWindow if it's currently open
                 m_mainWindow?.LoadSites();
+                m_mainWindow?.LoadLogs(); // Refresh logs if open
 
                 // Send summary notification for Startup or manual force checks
                 if (isStartup)
@@ -263,7 +330,7 @@ namespace Notifier
                     string title = "Startup Check Complete";
                     string msg = updatedCount > 0
                         ? $"{updatedCount} site(s) updated:\n" + string.Join(", ", updatedSites)
-                        : $"All {config.Sites.Count} site(s) up to date.";
+                        : $"All {sitesToProcess.Count} site(s) checked. Up to date.";
                     
                     var icon = updatedCount > 0 ? System.Windows.Forms.ToolTipIcon.Warning : System.Windows.Forms.ToolTipIcon.Info;
                     _notifyIcon?.ShowBalloonTip(5000, title, msg, icon);
@@ -273,7 +340,7 @@ namespace Notifier
                     string title = "Check Complete";
                     string msg = updatedCount > 0
                         ? $"{updatedCount} site(s) updated:\n" + string.Join(", ", updatedSites)
-                        : $"No changes detected across {config.Sites.Count} site(s).";
+                        : $"No changes detected across {sitesToProcess.Count} site(s) checked.";
 
                     if (errorCount > 0)
                     {
@@ -294,24 +361,6 @@ namespace Notifier
             finally
             {
                 _isChecking = false;
-                
-                // Restart timer/next check time alignment on checks finish
-                var config = ConfigManager.Load();
-                if (config.Settings.IsMonitoringEnabled)
-                {
-                    int minutes = Math.Max(1, config.Settings.CheckIntervalMinutes);
-                    NextCheckTime = DateTime.Now.AddMinutes(minutes);
-                    if (_checkTimer != null)
-                    {
-                        _checkTimer.Stop();
-                        _checkTimer.Interval = TimeSpan.FromMinutes(minutes);
-                        _checkTimer.Start();
-                    }
-                }
-                else
-                {
-                    NextCheckTime = null;
-                }
             }
         }
 
