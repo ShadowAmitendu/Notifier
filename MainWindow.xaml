@@ -39,6 +39,19 @@
                     <FontIcon Glyph="&#xE700;" FontSize="16"/>
                 </Button>
 
+                <!-- Back button — navigates to the previous page -->
+                <Button x:Name="BackButton"
+                        Click="BackButton_Click"
+                        ToolTipService.ToolTip="Go back"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Width="40" Height="40"
+                        Padding="0"
+                        CornerRadius="4"
+                        IsEnabled="False">
+                    <FontIcon Glyph="&#xE72B;" FontSize="14"/>
+                </Button>
+
                 <!-- App icon -->
                 <FontIcon Glyph="&#xE774;" FontSize="15"
                           Foreground="{ThemeResource SystemControlHighlightAccentBrush}"
@@ -218,6 +231,13 @@
                                   SelectionMode="None"
                                   Margin="0,0,0,8"
                                   IsItemClickEnabled="False">
+                            <ListView.ItemContainerStyle>
+                                <Style TargetType="ListViewItem">
+                                    <Setter Property="Padding" Value="0"/>
+                                    <Setter Property="Margin" Value="0"/>
+                                    <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                </Style>
+                            </ListView.ItemContainerStyle>
                             <ListView.ItemContainerTransitions>
                                 <TransitionCollection>
                                     <EntranceThemeTransition IsStaggeringEnabled="True"/>

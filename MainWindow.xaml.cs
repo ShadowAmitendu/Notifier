@@ -31,6 +31,9 @@ namespace Notifier
 
         public bool CanClose { get; set; } = false;
         public string DisplayVersion => $"Version {System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1.1.0"}";
+        private System.Collections.Generic.Stack<string> _backStack = new();
+        private string _currentTag = "Dashboard";
+        private bool _lastIsCheckingState = false;
         private ObservableCollection<SiteEntry> _sitesList = new();
         private List<SiteEntry> _allSitesList = new();
         private string? _editingSiteId = null;
@@ -139,6 +142,29 @@ namespace Notifier
 
         public void NavigateTo(string tag, bool clearForm = true)
         {
+            NavigateToInternal(tag, clearForm, isBackNavigation: false);
+        }
+
+        private void NavigateToInternal(string tag, bool clearForm = true, bool isBackNavigation = false)
+        {
+            if (string.IsNullOrEmpty(tag)) return;
+            if (tag == _currentTag && _backStack.Count > 0) return;
+
+            // Push current tag to back stack if it's not a back navigation and is a new page
+            if (!isBackNavigation && tag != _currentTag)
+            {
+                _backStack.Push(_currentTag);
+            }
+
+            // If navigating to Dashboard, clear back stack as it is the root page
+            if (tag == "Dashboard")
+            {
+                _backStack.Clear();
+            }
+
+            _currentTag = tag;
+            UpdateBackButtonState();
+
             NavView.SelectionChanged -= NavView_SelectionChanged;
 
             switch (tag)
@@ -182,6 +208,23 @@ namespace Notifier
             }
 
             NavView.SelectionChanged += NavView_SelectionChanged;
+        }
+
+        private void UpdateBackButtonState()
+        {
+            if (BackButton != null)
+            {
+                BackButton.IsEnabled = _backStack.Count > 0;
+            }
+        }
+
+        private void BackButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_backStack.Count > 0)
+            {
+                string prevTag = _backStack.Pop();
+                NavigateToInternal(prevTag, clearForm: false, isBackNavigation: true);
+            }
         }
 
         private void ShowPage(UIElement page)
@@ -231,6 +274,8 @@ namespace Notifier
 
         private void UpdateStatusBar()
         {
+            UpdateCheckNowButtonState();
+
             if (StatusBarText == null || StatusBarCountdownText == null || StatusBarIcon == null) return;
 
             var app = Application.Current as App;
@@ -299,6 +344,44 @@ namespace Notifier
                     StatusBarText.Text = "Monitoring Active";
                     StatusBarCountdownText.Text = "No sites scheduled";
                 }
+            }
+        }
+
+        private void UpdateCheckNowButtonState()
+        {
+            if (TitleCheckNowButton == null) return;
+
+            var app = Application.Current as App;
+            if (app == null) return;
+
+            bool isChecking = app.IsChecking;
+            if (isChecking == _lastIsCheckingState) return;
+
+            _lastIsCheckingState = isChecking;
+
+            if (isChecking)
+            {
+                TitleCheckNowButton.IsEnabled = false;
+
+                var checkPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, VerticalAlignment = VerticalAlignment.Center };
+                var progressRing = new ProgressRing
+                {
+                    IsActive = true,
+                    Width = 12,
+                    Height = 12
+                };
+                checkPanel.Children.Add(progressRing);
+                checkPanel.Children.Add(new TextBlock { Text = "Checking...", FontSize = 12, VerticalAlignment = VerticalAlignment.Center });
+                TitleCheckNowButton.Content = checkPanel;
+            }
+            else
+            {
+                TitleCheckNowButton.IsEnabled = true;
+
+                var panel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, VerticalAlignment = VerticalAlignment.Center };
+                panel.Children.Add(new FontIcon { Glyph = "\uE72C", FontSize = 12 });
+                panel.Children.Add(new TextBlock { Text = "Check Now", FontSize = 12, VerticalAlignment = VerticalAlignment.Center });
+                TitleCheckNowButton.Content = panel;
             }
         }
 
@@ -580,37 +663,15 @@ namespace Notifier
         {
             if (Application.Current is not App myApp) return;
 
-            var btn = sender as Button;
-            if (btn != null)
-            {
-                btn.IsEnabled = false;
-
-                var checkPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, VerticalAlignment = VerticalAlignment.Center };
-                var progressRing = new ProgressRing
-                {
-                    IsActive = true,
-                    Width = 12,
-                    Height = 12
-                };
-                checkPanel.Children.Add(progressRing);
-                checkPanel.Children.Add(new TextBlock { Text = "Checking...", FontSize = 12, VerticalAlignment = VerticalAlignment.Center });
-                btn.Content = checkPanel;
-            }
-
             try
             {
-                await myApp.PerformChecksAsync(forceNotification: true);
+                var checkTask = myApp.PerformChecksAsync(forceNotification: true);
+                UpdateCheckNowButtonState();
+                await checkTask;
             }
             finally
             {
-                if (btn != null)
-                {
-                    btn.IsEnabled = true;
-                    var panel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, VerticalAlignment = VerticalAlignment.Center };
-                    panel.Children.Add(new FontIcon { Glyph = "\uE72C", FontSize = 12 });
-                    panel.Children.Add(new TextBlock { Text = "Check Now", FontSize = 12, VerticalAlignment = VerticalAlignment.Center });
-                    btn.Content = panel;
-                }
+                UpdateCheckNowButtonState();
                 LoadSites();
             }
         }
