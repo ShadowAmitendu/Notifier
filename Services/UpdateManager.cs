@@ -85,8 +85,12 @@ namespace Notifier.Services
             string scriptPath = Path.Combine(tempDir, "install_update.ps1");
 
             string psScript = $@"
-$cerPath = '{cerPath}'
-$msixPath = '{msixPath}'
+$cerPath = @'
+{cerPath}
+'@
+$msixPath = @'
+{msixPath}
+'@
 
 Write-Host ""Site Notifier Update Installer"" -ForegroundColor Cyan
 Write-Host ""============================="" -ForegroundColor Cyan

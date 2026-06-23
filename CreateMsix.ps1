@@ -1,9 +1,12 @@
 # Ensure System.Drawing is loaded
 Add-Type -AssemblyName System.Drawing
 
+$scriptDir = $PSScriptRoot
+if ([string]::IsNullOrEmpty($scriptDir)) { $scriptDir = Get-Location }
+
 Write-Host "Synchronizing version from Notifier.csproj to Package.appxmanifest..." -ForegroundColor Cyan
-$csprojPath = "E:\Notifier\Notifier.csproj"
-$manifestPath = "E:\Notifier\Package.appxmanifest"
+$csprojPath = "$scriptDir\Notifier.csproj"
+$manifestPath = "$scriptDir\Package.appxmanifest"
 
 if (Test-Path $csprojPath) {
     [xml]$csproj = Get-Content -Path $csprojPath -Raw
@@ -36,7 +39,7 @@ if (Test-Path $csprojPath) {
 
 Write-Host "Creating Assets directory and generating logo images..." -ForegroundColor Cyan
 
-$assetsDir = "E:\Notifier\Assets"
+$assetsDir = "$scriptDir\Assets"
 if (!(Test-Path $assetsDir)) {
     New-Item -ItemType Directory -Path $assetsDir | Out-Null
 }
@@ -79,13 +82,13 @@ New-Logo "$assetsDir\SplashScreen.png" 620 300
 Write-Host "Building and publishing packaged MSIX..." -ForegroundColor Cyan
 
 # Remove old msix files if any to avoid confusion
-Get-ChildItem -Path "E:\Notifier" -Filter "*.msix" -Recurse -ErrorAction SilentlyContinue | Remove-Item -Force
+Get-ChildItem -Path $scriptDir -Filter "*.msix" -Recurse -ErrorAction SilentlyContinue | Remove-Item -Force
 
 # Run publish command
-dotnet publish E:\Notifier\Notifier.csproj -c Release -r win-x64 -p:WindowsPackageType=MSIX -p:GenerateAppxPackageOnBuild=true -p:AppxPackageSigningEnabled=false --self-contained
+dotnet publish $csprojPath -c Release -r win-x64 -p:WindowsPackageType=MSIX -p:GenerateAppxPackageOnBuild=true -p:AppxPackageSigningEnabled=false --self-contained
 
 # Find generated MSIX
-$msixFile = Get-ChildItem -Path "E:\Notifier" -Filter "*.msix" -Recurse | Select-Object -First 1
+$msixFile = Get-ChildItem -Path $scriptDir -Filter "*.msix" -Recurse | Select-Object -First 1
 
 if ($null -eq $msixFile) {
     Write-Error "MSIX Package generation failed. No .msix file found in build output."
@@ -121,7 +124,7 @@ Write-Host "Using SignTool: $signtoolPath" -ForegroundColor Green
 & $signtoolPath sign /sha1 $($cert.Thumbprint) /fd sha256 /v $msixPath
 
 Write-Host "Exporting publisher certificate to Installer folder..." -ForegroundColor Cyan
-$installerFolder = "E:\Notifier\Installer"
+$installerFolder = "$scriptDir\Installer"
 if (!(Test-Path $installerFolder)) {
     New-Item -ItemType Directory -Path $installerFolder | Out-Null
 }
@@ -146,5 +149,5 @@ Write-Host "4. Select 'Place all certificates in the following store', click Bro
 Write-Host "5. Complete the import wizard" -ForegroundColor Yellow
 Write-Host "6. Now double-click 'SiteUpdateNotifier.msix' to install the app!" -ForegroundColor Yellow
 Write-Host "`nOr run these commands in an Administrator PowerShell window to trust it instantly:" -ForegroundColor Yellow
-Write-Host "Import-Certificate -FilePath E:\Notifier\Installer\NotifierPublisher.cer -CertStoreLocation Cert:\LocalMachine\Root" -ForegroundColor Cyan
-Write-Host "Import-Certificate -FilePath E:\Notifier\Installer\NotifierPublisher.cer -CertStoreLocation Cert:\LocalMachine\TrustedPeople" -ForegroundColor Cyan
+Write-Host "Import-Certificate -FilePath `"$installerFolder\NotifierPublisher.cer`" -CertStoreLocation Cert:\LocalMachine\Root" -ForegroundColor Cyan
+Write-Host "Import-Certificate -FilePath `"$installerFolder\NotifierPublisher.cer`" -CertStoreLocation Cert:\LocalMachine\TrustedPeople" -ForegroundColor Cyan

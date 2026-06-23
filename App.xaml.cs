@@ -68,10 +68,18 @@ namespace Notifier
             this.InitializeComponent();
             this.UnhandledException += App_UnhandledException;
             AppDomain.CurrentDomain.UnhandledException += (s, e) => {
-                try { System.IO.File.WriteAllText("E:\\Notifier\\crash_domain.txt", e.ExceptionObject.ToString()); } catch {}
+                try {
+                    string appDir = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "SiteNotifier");
+                    System.IO.Directory.CreateDirectory(appDir);
+                    System.IO.File.WriteAllText(System.IO.Path.Combine(appDir, "crash_domain.txt"), e.ExceptionObject.ToString());
+                } catch {}
             };
             TaskScheduler.UnobservedTaskException += (s, e) => {
-                try { System.IO.File.WriteAllText("E:\\Notifier\\crash_task.txt", e.Exception.ToString()); } catch {}
+                try {
+                    string appDir = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "SiteNotifier");
+                    System.IO.Directory.CreateDirectory(appDir);
+                    System.IO.File.WriteAllText(System.IO.Path.Combine(appDir, "crash_task.txt"), e.Exception.ToString());
+                } catch {}
             };
         }
 
@@ -79,7 +87,9 @@ namespace Notifier
         {
             try
             {
-                System.IO.File.WriteAllText("E:\\Notifier\\crash.txt", e.Exception.ToString());
+                string appDir = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "SiteNotifier");
+                System.IO.Directory.CreateDirectory(appDir);
+                System.IO.File.WriteAllText(System.IO.Path.Combine(appDir, "crash.txt"), e.Exception.ToString());
             }
             catch { }
         }
