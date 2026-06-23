@@ -1132,7 +1132,7 @@ namespace Notifier
             SettingsSaveButton.Content = "Save Settings";
         }
 
-        private void OnSettingsSaveClick(object sender, RoutedEventArgs e)
+        private async void OnSettingsSaveClick(object sender, RoutedEventArgs e)
         {
             double intervalVal = SettingsIntervalBox.Value;
             double jitterVal   = SettingsJitterBox.Value;
@@ -1184,7 +1184,7 @@ namespace Notifier
 
             ApplyTheme(selectedTheme);
 
-            StartupHelper.SetStartup(runAtStart);
+            await StartupHelper.SetStartupAsync(runAtStart);
 
             if (Application.Current is App myApp)
                 myApp.ConfigureTimer();
@@ -1308,7 +1308,7 @@ namespace Notifier
                         ConfigManager.Save(config);
 
                         // Refresh Startup helper registry settings
-                        StartupHelper.SetStartup(config.Settings.RunAtStartup);
+                        await StartupHelper.SetStartupAsync(config.Settings.RunAtStartup);
 
                         // Reconfigure timers
                         if (Application.Current is App myApp)
