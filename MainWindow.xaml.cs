@@ -1,6 +1,8 @@
 using System;
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -1646,6 +1648,157 @@ namespace Notifier
                     SettingsValidationText.Visibility = Visibility.Collapsed;
                 });
             });
+        }
+
+        private async void OnCheckUpdatesClick(object sender, RoutedEventArgs e)
+        {
+            SettingsCheckUpdatesButton.IsEnabled = false;
+            SettingsUpdateStatusText.Text = "Checking for updates...";
+            SettingsUpdateProgressRing.IsActive = true;
+            SettingsUpdateProgressBar.Visibility = Visibility.Collapsed;
+
+            try
+            {
+                var releaseInfo = await UpdateManager.GetLatestReleaseAsync();
+                SettingsUpdateProgressRing.IsActive = false;
+
+                if (releaseInfo == null)
+                {
+                    SettingsUpdateStatusText.Text = "Failed to check for updates. Please try again.";
+                    SettingsCheckUpdatesButton.IsEnabled = true;
+                    return;
+                }
+
+                var currentVersion = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
+                if (currentVersion == null) currentVersion = new Version(1, 0, 0);
+
+                var latestVersionStr = releaseInfo.TagName.TrimStart('v', 'V');
+                var latestVersion = new Version(latestVersionStr);
+
+                if (latestVersion <= currentVersion)
+                {
+                    SettingsUpdateStatusText.Text = "Your version is up to date.";
+                    SettingsCheckUpdatesButton.IsEnabled = true;
+                    return;
+                }
+
+                // Update is available!
+                SettingsUpdateStatusText.Text = $"Version {latestVersionStr} is available.";
+
+                // Find MSIX and CER assets
+                ReleaseAsset? msixAsset = null;
+                ReleaseAsset? cerAsset = null;
+
+                foreach (var asset in releaseInfo.Assets)
+                {
+                    if (asset.Name.EndsWith(".msix", StringComparison.OrdinalIgnoreCase))
+                    {
+                        msixAsset = asset;
+                    }
+                    else if (asset.Name.EndsWith(".cer", StringComparison.OrdinalIgnoreCase))
+                    {
+                        cerAsset = asset;
+                    }
+                }
+
+                if (msixAsset == null || cerAsset == null)
+                {
+                    SettingsUpdateStatusText.Text = "Release assets are missing. Cannot update.";
+                    SettingsCheckUpdatesButton.IsEnabled = true;
+                    return;
+                }
+
+                // Prompt user to update
+                var updateDialog = new ContentDialog
+                {
+                    Title = "Update Available",
+                    Content = $"A new version (v{latestVersionStr}) is available. Would you like to download and install it now?",
+                    PrimaryButtonText = "Download & Install",
+                    CloseButtonText = "Cancel",
+                    DefaultButton = ContentDialogButton.Primary,
+                    XamlRoot = this.Content.XamlRoot
+                };
+
+                var dialogResult = await updateDialog.ShowAsync();
+                if (dialogResult != ContentDialogResult.Primary)
+                {
+                    SettingsCheckUpdatesButton.IsEnabled = true;
+                    return;
+                }
+
+                // Start downloading
+                SettingsUpdateStatusText.Text = "Downloading update...";
+                SettingsUpdateProgressBar.Visibility = Visibility.Visible;
+                SettingsUpdateProgressBar.Value = 0;
+
+                string tempFolder = Path.Combine(Path.GetTempPath(), "SiteNotifierUpdate");
+                if (Directory.Exists(tempFolder))
+                {
+                    try { Directory.Delete(tempFolder, true); } catch { }
+                }
+                Directory.CreateDirectory(tempFolder);
+
+                string msixPath = Path.Combine(tempFolder, "SiteUpdateNotifier.msix");
+                string cerPath = Path.Combine(tempFolder, "NotifierPublisher.cer");
+
+                var cts = new CancellationTokenSource();
+
+                // Download certificate
+                await UpdateManager.DownloadFileWithProgressAsync(
+                    cerAsset.BrowserDownloadUrl,
+                    cerPath,
+                    new Progress<double>(p => { }), // Certificate is tiny, no progress bar updates needed
+                    cts.Token
+                );
+
+                // Download MSIX with progress bar updates
+                var msixProgress = new Progress<double>(p =>
+                {
+                    DispatcherQueue.TryEnqueue(() =>
+                    {
+                        SettingsUpdateProgressBar.Value = p;
+                    });
+                });
+
+                await UpdateManager.DownloadFileWithProgressAsync(
+                    msixAsset.BrowserDownloadUrl,
+                    msixPath,
+                    msixProgress,
+                    cts.Token
+                );
+
+                SettingsUpdateStatusText.Text = "Downloads complete. Installing certificate...";
+                SettingsUpdateProgressBar.Visibility = Visibility.Collapsed;
+
+                // Prompt for installation
+                var installDialog = new ContentDialog
+                {
+                    Title = "Install Certificate & Update",
+                    Content = "The update files have been successfully downloaded. To install the self-signed app, we need to import its certificate into your machine's local store.\n\nClick 'Install' to trigger the UAC prompt, install the certificate, and update the app automatically.",
+                    PrimaryButtonText = "Install",
+                    CloseButtonText = "Cancel",
+                    DefaultButton = ContentDialogButton.Primary,
+                    XamlRoot = this.Content.XamlRoot
+                };
+
+                var installResult = await installDialog.ShowAsync();
+                if (installResult == ContentDialogResult.Primary)
+                {
+                    SettingsUpdateStatusText.Text = "Installing certificate and shutting down to update...";
+                    UpdateManager.TriggerUpdateInstallation(cerPath, msixPath);
+                }
+                else
+                {
+                    SettingsUpdateStatusText.Text = "Update canceled.";
+                    SettingsCheckUpdatesButton.IsEnabled = true;
+                }
+            }
+            catch (Exception ex)
+            {
+                SettingsUpdateStatusText.Text = $"Error: {ex.Message}";
+                SettingsUpdateProgressBar.Visibility = Visibility.Collapsed;
+                SettingsCheckUpdatesButton.IsEnabled = true;
+            }
         }
     }
 }

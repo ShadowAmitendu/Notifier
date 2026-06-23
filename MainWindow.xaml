@@ -978,6 +978,35 @@
                                     </HyperlinkButton>
                                 </StackPanel>
                                 
+                                <Border BorderBrush="{ThemeResource SystemControlBackgroundBaseLowBrush}" 
+                                        BorderThickness="0,1,0,0" 
+                                        Margin="0,12,0,0" 
+                                        Padding="0,16,0,0">
+                                    <StackPanel Spacing="12">
+                                        <TextBlock Text="App Updates" Style="{ThemeResource SubtitleTextBlockStyle}" FontWeight="SemiBold"/>
+                                        <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                                            <Button x:Name="SettingsCheckUpdatesButton" 
+                                                    Content="Check for Updates" 
+                                                    Click="OnCheckUpdatesClick"
+                                                    Style="{ThemeResource AccentButtonStyle}"
+                                                    Height="32" Padding="16,0,16,0" CornerRadius="4"/>
+                                            <TextBlock x:Name="SettingsUpdateStatusText" 
+                                                       Text="" 
+                                                       VerticalAlignment="Center" 
+                                                       Style="{ThemeResource BodyTextBlockStyle}" 
+                                                       Foreground="{ThemeResource SystemControlPageTextBaseMediumBrush}"/>
+                                            <ProgressRing x:Name="SettingsUpdateProgressRing" 
+                                                          IsActive="False" 
+                                                          Width="20" Height="20" 
+                                                          VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                        <ProgressBar x:Name="SettingsUpdateProgressBar" 
+                                                     Visibility="Collapsed" 
+                                                     Minimum="0" Maximum="100" Value="0" 
+                                                     Width="300" HorizontalAlignment="Left"/>
+                                    </StackPanel>
+                                </Border>
+                                
                                 <TextBlock Text="Licensed under the MIT License. All rights reserved." Style="{ThemeResource CaptionTextBlockStyle}" Foreground="{ThemeResource SystemControlPageTextBaseMediumBrush}"/>
                             </StackPanel>
                         </ScrollViewer>
