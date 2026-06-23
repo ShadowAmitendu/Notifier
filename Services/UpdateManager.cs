@@ -88,13 +88,30 @@ namespace Notifier.Services
 $cerPath = '{cerPath}'
 $msixPath = '{msixPath}'
 
-# 1. Import Certificate (triggers UAC)
-Start-Process powershell -ArgumentList ""-NoProfile -ExecutionPolicy Bypass -Command `""Import-Certificate -FilePath '$cerPath' -CertStoreLocation Cert:\LocalMachine\Root; Import-Certificate -FilePath '$cerPath' -CertStoreLocation Cert:\LocalMachine\TrustedPeople'`"""" -Verb RunAs -Wait
+Write-Host ""Site Notifier Update Installer"" -ForegroundColor Cyan
+Write-Host ""============================="" -ForegroundColor Cyan
+Write-Host """"
 
-# 2. Wait, Close App, and Install MSIX
+Write-Host ""1. Installing certificate... (Please approve UAC prompts if they appear)"" -ForegroundColor Yellow
+$cert1 = Start-Process certutil.exe -ArgumentList ""-addstore -f root `""$cerPath`"""" -Verb RunAs -Wait -PassThru
+$cert2 = Start-Process certutil.exe -ArgumentList ""-addstore -f TrustedPeople `""$cerPath`"""" -Verb RunAs -Wait -PassThru
+
+Write-Host ""2. Closing running application instances..."" -ForegroundColor Yellow
 Start-Sleep -Seconds 1
 Stop-Process -Name Notifier -Force -ErrorAction SilentlyContinue
-Add-AppxPackage -Path $msixPath
+
+Write-Host ""3. Installing the updated app package..."" -ForegroundColor Yellow
+try {{
+    Add-AppxPackage -Path $msixPath -ErrorAction Stop
+    Write-Host ""Update completed successfully!"" -ForegroundColor Green
+    Start-Sleep -Seconds 2
+}} catch {{
+    Write-Host """"
+    Write-Host ""Installation failed!"" -ForegroundColor Red
+    Write-Error $_.Exception.Message
+    Write-Host """"
+    Read-Host ""Press Enter to close this window...""
+}}
 ";
 
             File.WriteAllText(scriptPath, psScript);
@@ -104,7 +121,7 @@ Add-AppxPackage -Path $msixPath
                 FileName = "powershell.exe",
                 Arguments = $"-NoProfile -ExecutionPolicy Bypass -File \"{scriptPath}\"",
                 UseShellExecute = true,
-                CreateNoWindow = true
+                CreateNoWindow = false // Show the console window to the user
             };
             System.Diagnostics.Process.Start(startInfo);
         }
