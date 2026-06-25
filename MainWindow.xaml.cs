@@ -68,6 +68,11 @@ namespace Notifier
             var appWindow = Microsoft.UI.Windowing.AppWindow.GetFromWindowId(windowId);
             appWindow.Resize(new Windows.Graphics.SizeInt32(920, 640));
 
+            if (Microsoft.UI.Windowing.AppWindowTitleBar.IsCustomizationSupported())
+            {
+                appWindow.TitleBar.PreferredHeightOption = Microsoft.UI.Windowing.TitleBarHeightOption.Tall;
+            }
+
             try
             {
                 _windowIconSmall = App.CreateAppIcon(16);
